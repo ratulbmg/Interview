@@ -1,0 +1,25 @@
+{
+  "name": "@repo/eslint-config",
+  "version": "1.0.0",
+  "license": "MIT",
+  "exports": {
+    ".": "./base.js",
+    "./base": "./base.js",
+    "./react-internal": "./react-internal.js"
+  },
+  "dependencies": {
+    "@eslint/js": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.7.0"
+  },
+  "peerDependencies": {
+    "eslint": "^9.0.0 || ^10.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

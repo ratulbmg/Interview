@@ -1,0 +1,63 @@
+# ── Build Stage ──
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare yarn@4.11.0 --activate
+
+# Copy dependency manifests
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY apps/dashboard/package.json    ./apps/dashboard/
+COPY packages/ui/package.json       ./packages/ui/
+COPY packages/enums/package.json    ./packages/enums/
+COPY packages/eslint-config/        ./packages/eslint-config/
+COPY packages/prettier-config/      ./packages/prettier-config/
+COPY packages/typescript-config/    ./packages/typescript-config/
+
+# Install ALL dependencies (including devDependencies for build)
+RUN yarn install && yarn cache clean
+
+# Copy source code
+COPY apps/dashboard/                ./apps/dashboard/
+COPY packages/ui/                   ./packages/ui/
+COPY packages/enums/                ./packages/enums/
+
+# Vite inlines VITE_-prefixed vars into the bundle at build time, so this has
+# to be an ARG the build stage sees — setting it in docker-compose's
+# `environment:` would only reach the running container, too late for Vite.
+ARG VITE_API_ENDPOINT_URL
+ENV VITE_API_ENDPOINT_URL=${VITE_API_ENDPOINT_URL}
+
+# Build the dashboard app
+RUN yarn workspace dashboard build
+
+# ── Production Stage ──
+FROM node:22-alpine
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare yarn@4.11.0 --activate
+
+# Copy workspace manifests (needed for yarn workspace resolution)
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY apps/dashboard/package.json    ./apps/dashboard/
+COPY packages/ui/package.json       ./packages/ui/
+COPY packages/enums/package.json    ./packages/enums/
+COPY packages/eslint-config/        ./packages/eslint-config/
+COPY packages/prettier-config/      ./packages/prettier-config/
+COPY packages/typescript-config/    ./packages/typescript-config/
+
+# Full install, same tradeoff as the builder stage: `vite` (needed to run
+# `vite preview` below) is a devDependency.
+RUN yarn install && yarn cache clean
+
+# `vite preview` reads vite.config.ts fresh at startup (it's not baked into
+# the dist output), so the config has to ship in this stage too.
+COPY apps/dashboard/vite.config.ts ./apps/dashboard/vite.config.ts
+
+# Copy built assets from builder stage
+COPY --from=builder /app/apps/dashboard/dist ./apps/dashboard/dist
+
+EXPOSE 4173
+
+CMD ["yarn", "workspace", "dashboard", "start"]

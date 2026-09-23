@@ -1,0 +1,13 @@
+[project]
+name = "interview-agent"
+version = "0.0.0"
+description = "AI interview bot: CV parsing, question selection, the interview loop, and transcript scoring."
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["agent*"]

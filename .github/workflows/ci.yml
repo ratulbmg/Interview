@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  checks:
+    name: Lint, Format, Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack (Yarn 4)
+        run: corepack enable && corepack prepare yarn@4.11.0 --activate
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      # packages/db/generated/prisma is gitignored — apps/api's `tsc` (run as
+      # part of `yarn build` below) imports from it and fails immediately on
+      # a fresh checkout without this. No live DATABASE_URL needed — `prisma
+      # generate` only reads the schema.
+      - name: Generate Prisma client
+        run: yarn workspace @repo/db db-generate
+
+      - name: Lint
+        run: yarn lint:check
+
+      - name: Format check
+        run: yarn format:check
+
+      # Also serves as the type-check step — apps/dashboard's and
+      # apps/api's own `build` scripts already run `tsc`.
+      - name: Build
+        run: yarn build

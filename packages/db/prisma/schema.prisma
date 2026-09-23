@@ -1,0 +1,13 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Candidate, Role, Question, InterviewSession and User models, plus the
+// pgvector-backed Question.embedding column, are added in Phase 1 (the data
+// layer) — see the build plan in README.md. Kept schema-valid but model-free
+// until then so `prisma generate` succeeds against an empty client.

@@ -1,0 +1,21 @@
+FROM node:22-alpine
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare yarn@4.11.0 --activate
+
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY apps/email-worker/package.json       ./apps/email-worker/
+COPY packages/email/package.json          ./packages/email/
+COPY packages/shared-schemas/package.json ./packages/shared-schemas/
+COPY packages/eslint-config/              ./packages/eslint-config/
+COPY packages/prettier-config/            ./packages/prettier-config/
+COPY packages/typescript-config/          ./packages/typescript-config/
+
+RUN yarn install && yarn cache clean
+
+COPY packages/email/          ./packages/email/
+COPY packages/shared-schemas/ ./packages/shared-schemas/
+COPY apps/email-worker/       ./apps/email-worker/
+
+CMD ["yarn", "workspace", "email-worker", "start"]

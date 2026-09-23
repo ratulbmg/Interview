@@ -1,0 +1,31 @@
+{
+  "name": "@repo/db",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "sync-enums": "tsx scripts/sync-enums.ts",
+    "db-generate": "yarn sync-enums && prisma generate",
+    "db-migrate": "yarn sync-enums && prisma migrate dev",
+    "db-seed": "tsx src/seed.ts",
+    "db-reset": "prisma migrate reset",
+    "lint": "eslint . --ext .ts,.js"
+  },
+  "exports": {
+    "./client": "./src/index.ts"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "pg": "^8.18.0",
+    "prisma": "^7.3.0"
+  },
+  "devDependencies": {
+    "@prisma/adapter-pg": "^7.3.0",
+    "@prisma/client": "^7.3.0",
+    "@repo/enums": "*",
+    "@repo/eslint-config": "*",
+    "@repo/typescript-config": "*",
+    "@types/pg": "^8.16.0",
+    "eslint": "^10.8.0",
+    "tsx": "^4.21.0"
+  }
+}
