@@ -10,17 +10,24 @@
  *
  * Run via `yarn sync-enums`, and automatically before `db-generate` /
  * `db-migrate` (see package.json) so schema.prisma can never drift silently.
- *
- * SYNCED_ENUMS is empty until Phase 1 adds real enums to @repo/enums and
- * their matching `enum Name { ... }` blocks to schema.prisma — see the
- * build plan in README.md.
+ * Changing a value here still requires a real migration afterwards — this
+ * script only edits the schema file, it does not touch the database.
  */
 import fs from "node:fs";
 import path from "node:path";
+import { InterviewSessionStatus, QuestionDifficulty } from "@repo/enums";
 
 const SCHEMA_PATH = path.resolve(__dirname, "../prisma/schema.prisma");
 
-const SYNCED_ENUMS: Record<string, Record<string, string>> = {};
+// Every @repo/enums export that has a matching `enum` block in
+// schema.prisma. Adding a new shared enum? Add it to
+// @repo/enums/src/index.ts, add its `enum Name { ... }` block to
+// schema.prisma once (with whatever doc comment you want), list it here,
+// then this script keeps its members in sync.
+const SYNCED_ENUMS: Record<string, Record<string, string>> = {
+  InterviewSessionStatus,
+  QuestionDifficulty,
+};
 
 function buildEnumBlock(name: string, values: Record<string, string>): string {
   const members = Object.values(values)
@@ -56,7 +63,7 @@ function syncSchema(): void {
     fs.writeFileSync(SCHEMA_PATH, schema);
     console.log("sync-enums: schema.prisma written.");
   } else {
-    console.log("sync-enums: nothing to sync yet.");
+    console.log("sync-enums: schema.prisma already matches @repo/enums.");
   }
 }
 
