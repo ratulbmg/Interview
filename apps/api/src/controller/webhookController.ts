@@ -9,13 +9,14 @@ import { idParamSchema } from "../validation";
 export const receiveTranscript = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = idParamSchema.parse(req.params);
-    const { transcript } = receiveTranscriptSchema.parse(req.body);
-    // Zod validated the shape (array of { role, content }); `content` itself
-    // is arbitrary JSON from an external process (the Python agent), which
-    // is exactly what Prisma's Json column type is for.
+    const { transcript, report } = receiveTranscriptSchema.parse(req.body);
+    // Zod validated the shape; the actual JSON content is arbitrary data
+    // from an external process (the Python agent), which is exactly what
+    // Prisma's Json column type is for.
     const response = await sessionService.receiveTranscript(
       id,
       transcript as Prisma.InputJsonValue,
+      report as Prisma.InputJsonValue | undefined,
     );
     res.status(200).json(new ApiResponse(200, response, "Transcript received"));
   },

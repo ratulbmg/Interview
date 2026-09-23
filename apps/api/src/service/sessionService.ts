@@ -123,24 +123,60 @@ class SessionService {
 
   /**
    * apps/interview-agent posts here once the candidate hangs up or the
-   * interview otherwise ends (see agent/voice/webhook_client.py) — the one
-   * piece of interview state that crosses back from Python to this API
-   * rather than being written to Postgres directly. Phase 7 adds running
-   * the scorer against this transcript and storing reportJson.
+   * interview otherwise ends (see agent/voice/webhook_client.py), with the
+   * transcript and — since the agent already scored the interview itself
+   * right after it ended — the report. Stores both, marks the session
+   * COMPLETED, and enqueues a report-ready email to every recruiter; none
+   * of that needs a recruiter action to trigger.
    */
   async receiveTranscript(
     id: number,
     transcript: Prisma.InputJsonValue,
+    report?: Prisma.InputJsonValue,
   ): Promise<InterviewSession> {
-    const session = await repositoryWrapper.sessionRepository.findById(id);
+    const session =
+      (await repositoryWrapper.sessionRepository.findByIdWithRelations(
+        id,
+      )) as SessionWithRelations | null;
     if (!session) {
       throw new apiError("Session not found", 404);
     }
 
-    return repositoryWrapper.sessionRepository.update(id, {
+    const updated = await repositoryWrapper.sessionRepository.update(id, {
       transcript,
+      reportJson: report,
       status: InterviewSessionStatus.COMPLETED,
     });
+
+    if (report !== undefined) {
+      await this.notifyReportReady(session);
+    }
+
+    return updated;
+  }
+
+  private async notifyReportReady(
+    session: SessionWithRelations,
+  ): Promise<void> {
+    const recruiters = await repositoryWrapper.userRepository.findAll();
+    const dashboardUrl =
+      process.env.DASHBOARD_PUBLIC_URL ??
+      `http://localhost:${process.env.DASHBOARD_PORT ?? 3002}`;
+    const sessionUrl = `${dashboardUrl}/sessions/${session.id}`;
+    const candidateName = session.candidate.name ?? session.candidate.email;
+
+    for (const recruiter of recruiters) {
+      await enqueueEmail({
+        type: "report-ready",
+        data: {
+          to: recruiter.email,
+          candidateName,
+          roleName: session.role.name,
+          sessionId: session.id,
+          sessionUrl,
+        },
+      });
+    }
   }
 
   private async scheduleAgentStart(

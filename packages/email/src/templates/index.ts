@@ -3,11 +3,12 @@ import { EmailJob } from "../types";
 import { InviteEmail, inviteEmailSubject } from "./InviteEmail";
 import { FollowupEmail, followupEmailSubject } from "./FollowupEmail";
 import { MeetingLinkEmail, meetingLinkEmailSubject } from "./MeetingLinkEmail";
+import { ReportReadyEmail, reportReadyEmailSubject } from "./ReportReadyEmail";
 
-export { InviteEmail, FollowupEmail, MeetingLinkEmail };
+export { InviteEmail, FollowupEmail, MeetingLinkEmail, ReportReadyEmail };
 
 /** Renders a job's template to a subject + HTML body — the one place that
- * switches on EmailJob.type, so adding a fourth template means adding one
+ * switches on EmailJob.type, so adding another template means adding one
  * case here (and to the EmailJob union in types.ts). */
 export async function renderEmailJob(
   job: EmailJob,
@@ -27,6 +28,11 @@ export async function renderEmailJob(
       return {
         subject: meetingLinkEmailSubject(job.data),
         html: await render(MeetingLinkEmail(job.data)),
+      };
+    case "report-ready":
+      return {
+        subject: reportReadyEmailSubject(job.data),
+        html: await render(ReportReadyEmail(job.data)),
       };
   }
 }

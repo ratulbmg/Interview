@@ -41,6 +41,32 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["type", "data"],
+      "properties": {
+        "type": { "const": "report-ready" },
+        "data": {
+          "type": "object",
+          "required": [
+            "to",
+            "candidateName",
+            "roleName",
+            "sessionId",
+            "sessionUrl"
+          ],
+          "properties": {
+            "to": { "type": "string", "format": "email" },
+            "candidateName": { "type": "string" },
+            "roleName": { "type": "string" },
+            "sessionId": { "type": "integer" },
+            "sessionUrl": { "type": "string", "format": "uri" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "$defs": {

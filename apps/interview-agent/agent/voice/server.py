@@ -6,6 +6,7 @@ so they can share the in-memory ready-room registry (ready_rooms.py).
 Run with: python -m agent.voice.server
 """
 
+import asyncio
 import sys
 
 from loguru import logger
@@ -23,6 +24,7 @@ from agent.config import AGENT_HOST, AGENT_PORT, OPENAI_API_KEY, OPENAI_VOICE_ID
 from agent.voice import pipeline as pipeline_module
 from agent.voice.consumer import start_consumer
 from agent.voice.ready_rooms import get_ready_session
+from agent.voice.report import score_interview
 from agent.voice.webhook_client import post_transcript
 
 
@@ -69,8 +71,16 @@ async def _run_interview_bot(transport: BaseTransport, session) -> None:
     async def on_client_disconnected(transport, client):
         logger.info(f"Candidate disconnected — session {session.session_id}")
         transcript = pipeline_module.extract_transcript(context)
+        report = None
         try:
-            await post_transcript(session.session_id, transcript)
+            # score_interview makes blocking OpenAI calls (agent/llm_client.py
+            # uses the sync client) — offload so it doesn't stall this
+            # process's event loop (and every other connection it's serving).
+            report = await asyncio.to_thread(score_interview, transcript, session.selected_questions, session.role_name)
+        except Exception as error:
+            logger.error(f"Failed to score session {session.session_id}: {error}")
+        try:
+            await post_transcript(session.session_id, transcript, report)
         except Exception as error:
             logger.error(f"Failed to post transcript for session {session.session_id}: {error}")
         await runner.cancel()
