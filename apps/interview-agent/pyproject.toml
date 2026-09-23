@@ -3,7 +3,14 @@ name = "interview-agent"
 version = "0.0.0"
 description = "AI interview bot: CV parsing, question selection, the interview loop, and transcript scoring."
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "openai>=1.50",
+    "pypdf>=4.3",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3",
+    "python-dotenv>=1.0",
+    "numpy>=1.26",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
