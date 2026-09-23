@@ -10,7 +10,7 @@
 #   api            → Express + nodemon (hot-reload via bind mount)
 #   dashboard      → Vite React recruiter dashboard (hot-reload via bind mount)
 #   email-worker   → BullMQ worker, no HTTP port
-#   agent          → Python interview bot, no HTTP port yet (Phase 2/6)
+#   agent          → Python interview bot — WebRTC voice room on 7860
 #
 # First time up, the local db starts empty — apply the schema and seed data
 # once Phase 1 adds them:
@@ -201,19 +201,28 @@ services:
       - app-network
 
   # --------------------------------------------------------------------------
-  # Interview agent — Python, not part of the yarn workspace (Phase 2/6)
+  # Interview agent — Python, not part of the yarn workspace. Hosts the
+  # candidate's WebRTC voice room (port 7860) and the "agent-jobs" BullMQ
+  # consumer in one process (see agent/voice/server.py, Phase 6).
   # --------------------------------------------------------------------------
   agent:
     container_name: interview-agent
     build:
       context: .
       dockerfile: docker/Dockerfile.agent.dev
-    command: python -m agent
+    command: python -m agent.voice.server
+    ports:
+      - "${AGENT_PORT:-7860}:7860"
     environment:
       - REDIS_URL=redis://redis:6379
       - API_URL=http://api:3001
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/${POSTGRES_DB:-interview}
+      - AGENT_HOST=0.0.0.0
+      - AGENT_PORT=7860
     depends_on:
       redis:
+        condition: service_healthy
+      db:
         condition: service_healthy
     volumes:
       - ./apps/interview-agent:/app

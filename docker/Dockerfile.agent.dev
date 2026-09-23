@@ -11,3 +11,6 @@ COPY apps/interview-agent/pyproject.toml ./
 # docker-compose.dev.yml), same pattern as the Node apps' dev images.
 COPY apps/interview-agent/agent ./agent
 RUN pip install --no-cache-dir -e .
+
+# WebRTC voice room (see agent/voice/server.py)
+EXPOSE 7860

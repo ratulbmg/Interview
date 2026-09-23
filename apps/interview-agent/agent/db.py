@@ -24,6 +24,14 @@ class RoleRecord:
 
 
 @dataclass
+class CandidateRecord:
+    id: int
+    email: str
+    name: str | None
+    cv_url: str
+
+
+@dataclass
 class QuestionRecord:
     id: int
     text: str
@@ -48,6 +56,30 @@ def get_role_by_name(name: str) -> RoleRecord:
         if row is None:
             raise ValueError(f'No role named "{name}" — check packages/db/src/seed.ts or the dashboard\'s role list.')
         return RoleRecord(id=row[0], name=row[1], description=row[2], blueprint=row[3])
+
+
+def get_role_by_id(role_id: int) -> RoleRecord:
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT id, name, description, blueprint FROM roles WHERE id = %s", (role_id,))
+        row = cur.fetchone()
+        if row is None:
+            raise ValueError(f"No role with id {role_id}.")
+        return RoleRecord(id=row[0], name=row[1], description=row[2], blueprint=row[3])
+
+
+def get_candidate_by_id(candidate_id: int) -> CandidateRecord:
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute('SELECT id, email, name, "cvUrl" FROM candidates WHERE id = %s', (candidate_id,))
+        row = cur.fetchone()
+        if row is None:
+            raise ValueError(f"No candidate with id {candidate_id}.")
+        return CandidateRecord(id=row[0], email=row[1], name=row[2], cv_url=row[3])
+
+
+def mark_session_in_progress(session_id: int) -> None:
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute('UPDATE sessions SET status = %s WHERE id = %s', ("IN_PROGRESS", session_id))
+        conn.commit()
 
 
 def get_questions() -> list[QuestionRecord]:

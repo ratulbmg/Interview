@@ -6,11 +6,15 @@ import Candidates from "../pages/Candidates/Candidates";
 import Sessions from "../pages/Sessions/Sessions";
 import SessionDetail from "../pages/SessionDetail/SessionDetail";
 import Questions from "../pages/Questions/Questions";
+import Room from "../pages/Room/Room";
 
 export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      {/* Public — candidates never log in (see apps/api's meetingProvider.ts,
+          which mints this URL). */}
+      <Route path="/room/:token" element={<Room />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>

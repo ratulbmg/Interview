@@ -6,4 +6,6 @@ COPY apps/interview-agent/ ./
 
 RUN pip install --no-cache-dir -e .
 
-CMD ["python", "-m", "agent"]
+EXPOSE 7860
+
+CMD ["python", "-m", "agent.voice.server"]

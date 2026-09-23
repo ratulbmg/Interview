@@ -1,4 +1,4 @@
-import { InterviewSession, Candidate, Role } from "@repo/db/client";
+import { InterviewSession, Candidate, Role, Prisma } from "@repo/db/client";
 import { enqueueEmail } from "@repo/email";
 import { InterviewSessionStatus } from "../enum";
 import { apiError } from "../utils/apiError";
@@ -119,6 +119,28 @@ class SessionService {
       },
       { delay: delayUntil(session.scheduledAt, 1 * DAYS) },
     );
+  }
+
+  /**
+   * apps/interview-agent posts here once the candidate hangs up or the
+   * interview otherwise ends (see agent/voice/webhook_client.py) — the one
+   * piece of interview state that crosses back from Python to this API
+   * rather than being written to Postgres directly. Phase 7 adds running
+   * the scorer against this transcript and storing reportJson.
+   */
+  async receiveTranscript(
+    id: number,
+    transcript: Prisma.InputJsonValue,
+  ): Promise<InterviewSession> {
+    const session = await repositoryWrapper.sessionRepository.findById(id);
+    if (!session) {
+      throw new apiError("Session not found", 404);
+    }
+
+    return repositoryWrapper.sessionRepository.update(id, {
+      transcript,
+      status: InterviewSessionStatus.COMPLETED,
+    });
   }
 
   private async scheduleAgentStart(

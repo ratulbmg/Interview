@@ -8,3 +8,4 @@ export {
 } from "./sessionController";
 export { listRoles } from "./roleController";
 export { listQuestions } from "./questionController";
+export { receiveTranscript } from "./webhookController";
