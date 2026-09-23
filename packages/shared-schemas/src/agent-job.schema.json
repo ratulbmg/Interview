@@ -1,22 +1,38 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://interview-platform/schemas/agent-job.schema.json",
-  "title": "AgentStartJob",
-  "description": "The payload apps/api enqueues (scheduledAt minus 2 minutes, alongside the three candidate emails — see apps/api/src/lib/agentQueue.ts) on the 'agent-jobs' BullMQ queue, and apps/interview-agent picks up to start an interview (Phase 6). Everything else the agent needs (candidate CV, role blueprint, question bank) it looks up from Postgres directly by these ids — see apps/interview-agent/agent/db.py.",
-  "type": "object",
-  "required": [
-    "sessionId",
-    "candidateId",
-    "roleId",
-    "meetingUrl",
-    "scheduledAt"
-  ],
-  "properties": {
-    "sessionId": { "type": "integer" },
-    "candidateId": { "type": "integer" },
-    "roleId": { "type": "integer" },
-    "meetingUrl": { "type": "string", "format": "uri" },
-    "scheduledAt": { "type": "string", "format": "date-time" }
-  },
-  "additionalProperties": false
+  "title": "AgentQueueJob",
+  "description": "Mirrors apps/api/src/lib/agentQueue.ts's AgentQueueJob union by hand — the two job payloads apps/api enqueues on the 'agent-jobs' BullMQ queue and apps/interview-agent's Python consumer (agent/voice/consumer.py) picks up, distinguished by BullMQ's own job name ('agent-start' or 'noshow-check').",
+  "oneOf": [
+    {
+      "title": "AgentStartJob",
+      "description": "Enqueued for scheduledAt minus 2 minutes — the agent prepares the room. Everything else the agent needs (candidate CV, role blueprint, question bank) it looks up from Postgres directly by these ids — see apps/interview-agent/agent/db.py.",
+      "type": "object",
+      "required": [
+        "sessionId",
+        "candidateId",
+        "roleId",
+        "meetingUrl",
+        "scheduledAt"
+      ],
+      "properties": {
+        "sessionId": { "type": "integer" },
+        "candidateId": { "type": "integer" },
+        "roleId": { "type": "integer" },
+        "meetingUrl": { "type": "string", "format": "uri" },
+        "scheduledAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "title": "NoShowCheckJob",
+      "description": "Enqueued for scheduledAt plus 15 minutes — marks the session NO_SHOW if it never actually started (Phase 8).",
+      "type": "object",
+      "required": ["sessionId"],
+      "properties": {
+        "sessionId": { "type": "integer" }
+      },
+      "additionalProperties": false
+    }
+  ]
 }

@@ -108,17 +108,22 @@ model Question {
 /// the last thing the recruiter has to do; everything after (see
 /// packages/email and the scheduler, Phases 4-5) runs on its own.
 model InterviewSession {
-  id          Int                    @id @default(autoincrement())
-  candidateId Int
-  candidate   Candidate              @relation(fields: [candidateId], references: [id])
-  roleId      Int
-  role        Role                   @relation(fields: [roleId], references: [id])
-  status      InterviewSessionStatus @default(SCHEDULED)
-  scheduledAt DateTime
-  meetingUrl  String?
-  transcript  Json?
-  reportJson  Json?
-  createdAt   DateTime               @default(now())
+  id             Int                    @id @default(autoincrement())
+  candidateId    Int
+  candidate      Candidate              @relation(fields: [candidateId], references: [id])
+  roleId         Int
+  role           Role                   @relation(fields: [roleId], references: [id])
+  status         InterviewSessionStatus @default(SCHEDULED)
+  scheduledAt    DateTime
+  meetingUrl     String?
+  transcript     Json?
+  reportJson     Json?
+  /// Set the moment the candidate confirms the recording/AI-evaluation
+  /// notice at the start of the call (see apps/interview-agent's
+  /// agent/voice/server.py, Phase 8) — null means either the interview
+  /// hasn't started or consent was never explicitly logged.
+  consentGivenAt DateTime?
+  createdAt      DateTime               @default(now())
 
   @@map("sessions")
 }

@@ -7,7 +7,8 @@
     "build": "tsc -p .",
     "start": "tsx src/index.ts",
     "dev": "nodemon",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "batch-test": "tsx scripts/batch-test-30.ts"
   },
   "dependencies": {
     "@repo/db": "*",

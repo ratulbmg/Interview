@@ -5,7 +5,7 @@ import { apiError } from "../utils/apiError";
 import { ScheduleSessionRequest } from "../model/sessionModel";
 import { repositoryWrapper } from "../repository/repositoryWrapper";
 import { meetingProvider } from "../lib/meetingProvider";
-import { agentQueue, AgentStartJob } from "../lib/agentQueue";
+import { agentQueue, AgentStartJob, NoShowCheckJob } from "../lib/agentQueue";
 import { delayUntil, MINUTES, DAYS } from "../lib/scheduling";
 
 type SessionWithRelations = InterviewSession & {
@@ -83,6 +83,7 @@ class SessionService {
 
     await this.scheduleEmails(session, meetingUrl);
     await this.scheduleAgentStart(session, meetingUrl);
+    await this.scheduleNoShowCheck(session);
 
     return updated;
   }
@@ -192,6 +193,20 @@ class SessionService {
     };
     await agentQueue.add("agent-start", job, {
       delay: delayUntil(session.scheduledAt, 2 * MINUTES),
+    });
+  }
+
+  /** Fires 15 minutes after scheduledAt — apps/interview-agent marks the
+   * session NO_SHOW if it never actually started (see
+   * agent/voice/consumer.py's "noshow-check" handler, Phase 8). A negative
+   * offset to delayUntil is what pushes the target time past scheduledAt
+   * instead of before it. */
+  private async scheduleNoShowCheck(
+    session: SessionWithRelations,
+  ): Promise<void> {
+    const job: NoShowCheckJob = { sessionId: session.id };
+    await agentQueue.add("noshow-check", job, {
+      delay: delayUntil(session.scheduledAt, -15 * MINUTES),
     });
   }
 }

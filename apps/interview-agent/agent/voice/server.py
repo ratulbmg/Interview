@@ -20,12 +20,18 @@ from pipecat.services.openai.tts import OpenAITTSService
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.workers.runner import WorkerRunner
 
+from agent import db
 from agent.config import AGENT_HOST, AGENT_PORT, OPENAI_API_KEY, OPENAI_VOICE_ID
 from agent.voice import pipeline as pipeline_module
 from agent.voice.consumer import start_consumer
-from agent.voice.ready_rooms import get_ready_session
+from agent.voice.ready_rooms import ReadySession, clear as clear_ready_room, get_ready_session
 from agent.voice.report import score_interview
 from agent.voice.webhook_client import post_transcript
+
+# How long to wait after a disconnect before treating the interview as
+# genuinely over, rather than a dropped connection the candidate is about
+# to re-establish (see _run_interview_bot's on_client_disconnected).
+RECONNECT_GRACE_SECONDS = 30
 
 
 async def _run_not_ready_bot(transport: BaseTransport) -> None:
@@ -51,39 +57,68 @@ async def _run_not_ready_bot(transport: BaseTransport) -> None:
     await runner.run()
 
 
-async def _run_interview_bot(transport: BaseTransport, session) -> None:
-    pipeline, context = pipeline_module.build_pipeline(transport, session)
+async def _finalize_interview(session: ReadySession, room_token: str) -> None:
+    """Scores and posts the transcript, then frees the room. Only called
+    once RECONNECT_GRACE_SECONDS has passed with no reconnect — see
+    on_client_disconnected below."""
+    transcript = session.transcript_so_far
+    report = None
+    try:
+        # score_interview makes blocking OpenAI calls (agent/llm_client.py
+        # uses the sync client) — offload so it doesn't stall this
+        # process's event loop (and every other connection it's serving).
+        report = await asyncio.to_thread(score_interview, transcript, session.selected_questions, session.role_name)
+    except Exception as error:
+        logger.error(f"Failed to score session {session.session_id}: {error}")
+    try:
+        await post_transcript(session.session_id, transcript, report)
+    except Exception as error:
+        logger.error(f"Failed to post transcript for session {session.session_id}: {error}")
+    clear_ready_room(room_token)
+
+
+async def _run_interview_bot(transport: BaseTransport, session: ReadySession, room_token: str) -> None:
+    is_reconnect = len(session.transcript_so_far) > 0
+    pipeline, context = pipeline_module.build_pipeline(transport, session, resume_messages=session.transcript_so_far)
 
     worker = PipelineWorker(pipeline, params=PipelineParams(enable_metrics=True))
     runner = WorkerRunner()
     await runner.add_workers(worker)
 
-    from agent import db
+    session.connection_count += 1
+    my_connection_id = session.connection_count
 
-    db.mark_session_in_progress(session.session_id)
+    if not is_reconnect:
+        db.mark_session_in_progress(session.session_id)
 
     @worker.rtvi.event_handler("on_client_ready")
     async def on_client_ready(rtvi):
-        context.add_message({"role": "developer", "content": "Greet the candidate by name and ask the first question."})
+        if not session.consent_logged:
+            # The system prompt (pipeline.py) makes the recording/AI-evaluation
+            # notice the first thing the bot says — logged here, once, right as
+            # that flow kicks off.
+            db.log_consent(session.session_id)
+            session.consent_logged = True
+
+        if is_reconnect:
+            context.add_message({"role": "developer", "content": "The candidate just reconnected after a brief interruption. Briefly acknowledge that and continue the interview from where it left off — don't restart or re-ask what's already been covered."})
+        else:
+            context.add_message({"role": "developer", "content": "Start with the recording/AI-evaluation notice, then greet the candidate by name and ask the first question."})
         await worker.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
-        logger.info(f"Candidate disconnected — session {session.session_id}")
-        transcript = pipeline_module.extract_transcript(context)
-        report = None
-        try:
-            # score_interview makes blocking OpenAI calls (agent/llm_client.py
-            # uses the sync client) — offload so it doesn't stall this
-            # process's event loop (and every other connection it's serving).
-            report = await asyncio.to_thread(score_interview, transcript, session.selected_questions, session.role_name)
-        except Exception as error:
-            logger.error(f"Failed to score session {session.session_id}: {error}")
-        try:
-            await post_transcript(session.session_id, transcript, report)
-        except Exception as error:
-            logger.error(f"Failed to post transcript for session {session.session_id}: {error}")
+        logger.info(f"Candidate disconnected — session {session.session_id} (connection {my_connection_id})")
+        session.transcript_so_far = pipeline_module.extract_transcript(context)
         await runner.cancel()
+
+        await asyncio.sleep(RECONNECT_GRACE_SECONDS)
+        if session.connection_count != my_connection_id:
+            # A newer connection has already taken over — that connection's
+            # own disconnect handler is responsible for finalizing.
+            logger.info(f"Session {session.session_id} reconnected during grace period — not finalizing")
+            return
+        await _finalize_interview(session, room_token)
 
     await runner.run()
 
@@ -99,7 +134,7 @@ async def bot(runner_args: RunnerArguments) -> None:
         await _run_not_ready_bot(transport)
         return
 
-    await _run_interview_bot(transport, session)
+    await _run_interview_bot(transport, session, room_token)
 
 
 @app.on_event("startup")

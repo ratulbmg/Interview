@@ -82,6 +82,35 @@ def mark_session_in_progress(session_id: int) -> None:
         conn.commit()
 
 
+def log_consent(session_id: int) -> None:
+    """Called once the candidate has heard and responded to the
+    recording/AI-evaluation notice at the start of the call — see
+    agent/voice/server.py's on_client_ready handler, Phase 8."""
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute('UPDATE sessions SET "consentGivenAt" = now() WHERE id = %s', (session_id,))
+        conn.commit()
+
+
+def get_session_status(session_id: int) -> str | None:
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT status FROM sessions WHERE id = %s", (session_id,))
+        row = cur.fetchone()
+        return row[0] if row else None
+
+
+def mark_session_no_show_if_not_started(session_id: int) -> bool:
+    """Only touches a session still sitting at SCHEDULED or INVITE_SENT —
+    one that actually started (IN_PROGRESS/COMPLETED) or was already
+    handled isn't a no-show. Returns whether it made the change."""
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            'UPDATE sessions SET status = %s WHERE id = %s AND status IN (%s, %s)',
+            ("NO_SHOW", session_id, "SCHEDULED", "INVITE_SENT"),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
 def get_questions() -> list[QuestionRecord]:
     with _connect() as conn, conn.cursor() as cur:
         cur.execute(

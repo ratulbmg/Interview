@@ -22,6 +22,14 @@ class ReadySession:
     role_name: str
     candidate_name: str
     selected_questions: list[SelectedQuestion] = field(default_factory=list)
+    # Reconnect support (Phase 8, hardening): a dropped WebRTC connection
+    # doesn't lose the interview — the new connection primes its context
+    # from this, and `connection_count` lets the *old* connection's
+    # disconnect handler tell a genuine end apart from a reconnect-in-
+    # progress (see server.py's on_client_disconnected).
+    transcript_so_far: list[dict] = field(default_factory=list)
+    connection_count: int = 0
+    consent_logged: bool = False
 
 
 _rooms: dict[str, ReadySession] = {}

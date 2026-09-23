@@ -33,6 +33,14 @@ def _build_system_instruction(session: ReadySession) -> str:
         f"{session.role_name} role. Speak naturally and conversationally — your responses are spoken "
         "aloud, so never use emojis, bullet points, markdown, or anything that can't be spoken.",
         "",
+        "Before anything else — this is the very first thing you say, before any question: tell the "
+        "candidate this interview is being recorded and evaluated by an AI system, and ask them to "
+        "confirm they're okay to proceed. Wait for their response before continuing.",
+        "",
+        "If you don't understand what the candidate said, or there's a long silence, don't guess — "
+        "politely say you didn't catch that (or ask if their connection is okay) and ask them to repeat "
+        "it, rather than moving on or making up an answer they didn't give.",
+        "",
         "Ask the following questions IN ORDER, one at a time. After each answer, ask 1-2 short, natural "
         "follow-up questions that probe deeper into what the candidate actually said (specifics, "
         "trade-offs, a detail they glossed over) before moving to the next question — but don't force a "
@@ -49,7 +57,10 @@ def _build_system_instruction(session: ReadySession) -> str:
     return "\n".join(lines)
 
 
-def build_pipeline(transport: BaseTransport, session: ReadySession) -> tuple[Pipeline, LLMContext]:
+def build_pipeline(transport: BaseTransport, session: ReadySession, resume_messages: list[dict] | None = None) -> tuple[Pipeline, LLMContext]:
+    """`resume_messages` seeds the context on a reconnect (see server.py's
+    on_client_disconnected/RECONNECT_GRACE_SECONDS, Phase 8) so the LLM
+    picks the conversation back up instead of starting over."""
     stt = OpenAISTTService(api_key=OPENAI_API_KEY)
 
     tts = OpenAITTSService(
@@ -65,7 +76,7 @@ def build_pipeline(transport: BaseTransport, session: ReadySession) -> tuple[Pip
         ),
     )
 
-    context = LLMContext()
+    context = LLMContext(messages=resume_messages or None)
     # SileroVADAnalyzer on the user aggregator is what gives this pipeline
     # both turn detection (knowing when the candidate has finished
     # speaking) and barge-in (new user speech interrupts the bot's TTS
