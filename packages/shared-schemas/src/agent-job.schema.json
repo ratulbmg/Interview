@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://interview-platform/schemas/agent-job.schema.json",
+  "title": "AgentStartJob",
+  "description": "The payload apps/api enqueues (scheduledAt minus 2 minutes, alongside the three candidate emails — see apps/api/src/lib/agentQueue.ts) on the 'agent-jobs' BullMQ queue, and apps/interview-agent picks up to start an interview (Phase 6). Everything else the agent needs (candidate CV, role blueprint, question bank) it looks up from Postgres directly by these ids — see apps/interview-agent/agent/db.py.",
+  "type": "object",
+  "required": [
+    "sessionId",
+    "candidateId",
+    "roleId",
+    "meetingUrl",
+    "scheduledAt"
+  ],
+  "properties": {
+    "sessionId": { "type": "integer" },
+    "candidateId": { "type": "integer" },
+    "roleId": { "type": "integer" },
+    "meetingUrl": { "type": "string", "format": "uri" },
+    "scheduledAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}
