@@ -1,7 +1,9 @@
-/**
- * EmailJob union, BullMQ queue/worker setup, and React Email templates for
- * the three candidate-facing emails (invite, follow-up reminder,
- * meeting-link). Built out in Phase 4 — see the build plan in README.md.
- */
-
-export {};
+export { enqueueEmail } from "./client";
+export type { EnqueueEmailOptions } from "./client";
+export { startEmailWorker } from "./worker";
+export type {
+  EmailJob,
+  EmailJobType,
+  BaseEmailData,
+  MeetingLinkEmailData,
+} from "./types";

@@ -1,13 +1,15 @@
 # =============================================================================
 # Docker Compose — Development Environment
 # =============================================================================
-# Spins up six services:
+# Spins up seven services:
 #   db             → PostgreSQL 17 + pgvector, local to dev only (persistent
 #                     data via named volume)
 #   redis          → Redis 7, backs BullMQ (email scheduling, Phase 5)
+#   mailhog        → Catches outgoing dev email — SMTP on 1025, web UI on
+#                     8025 (see packages/email/src/mailer.ts)
 #   api            → Express + nodemon (hot-reload via bind mount)
 #   dashboard      → Vite React recruiter dashboard (hot-reload via bind mount)
-#   email-worker   → BullMQ worker, no HTTP port (Phase 4)
+#   email-worker   → BullMQ worker, no HTTP port
 #   agent          → Python interview bot, no HTTP port yet (Phase 2/6)
 #
 # First time up, the local db starts empty — apply the schema and seed data
@@ -69,6 +71,20 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - app-network
+
+  # --------------------------------------------------------------------------
+  # Mailhog — catches every email packages/email's worker sends in dev, no
+  # real SMTP relay involved. Web UI at http://localhost:8025.
+  # --------------------------------------------------------------------------
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: interview-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
     networks:
       - app-network
 
@@ -160,9 +176,13 @@ services:
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=1
       - REDIS_URL=redis://redis:6379
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1025
     depends_on:
       redis:
         condition: service_healthy
+      mailhog:
+        condition: service_started
     volumes:
       - .:/app
       - /app/node_modules

@@ -3,7 +3,9 @@
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
     "rootDir": "./src",
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "jsx": "react-jsx",
+    "lib": ["es2022", "DOM"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
