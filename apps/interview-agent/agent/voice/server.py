@@ -16,12 +16,12 @@ from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.runner.run import app, main
 from pipecat.runner.types import RunnerArguments
 from pipecat.runner.utils import create_transport
-from pipecat.services.openai.tts import OpenAITTSService
+from pipecat.services.kokoro.tts import KokoroTTSService
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.workers.runner import WorkerRunner
 
 from agent import db
-from agent.config import AGENT_HOST, AGENT_PORT, OPENAI_API_KEY, OPENAI_VOICE_ID
+from agent.config import AGENT_HOST, AGENT_PORT, VOICE_TTS_VOICE
 from agent.voice import pipeline as pipeline_module
 from agent.voice.consumer import start_consumer
 from agent.voice.ready_rooms import ReadySession, clear as clear_ready_room, get_ready_session
@@ -39,7 +39,7 @@ async def _run_not_ready_bot(transport: BaseTransport) -> None:
     fired (they can click it any time after the meeting-link email goes
     out, up to a day before the interview — see the scheduler, Phase 5).
     Say so, then end the call."""
-    tts = OpenAITTSService(api_key=OPENAI_API_KEY, settings=OpenAITTSService.Settings(voice=OPENAI_VOICE_ID))
+    tts = KokoroTTSService(settings=KokoroTTSService.Settings(voice=VOICE_TTS_VOICE))
     pipeline = Pipeline([tts, transport.output()])
     worker = PipelineWorker(pipeline, params=PipelineParams())
     runner = WorkerRunner()
@@ -100,10 +100,13 @@ async def _run_interview_bot(transport: BaseTransport, session: ReadySession, ro
             db.log_consent(session.session_id)
             session.consent_logged = True
 
+        # "developer"-role messages are silently dropped by Ollama's chat API
+        # (see OLLamaLLMService.supports_developer_role in pipecat) — "user"
+        # is what actually reaches the model there.
         if is_reconnect:
-            context.add_message({"role": "developer", "content": "The candidate just reconnected after a brief interruption. Briefly acknowledge that and continue the interview from where it left off — don't restart or re-ask what's already been covered."})
+            context.add_message({"role": "user", "content": "[The candidate just reconnected after a brief interruption. Briefly acknowledge that and continue the interview from where it left off — don't restart or re-ask what's already been covered.]"})
         else:
-            context.add_message({"role": "developer", "content": "Start with the recording/AI-evaluation notice, then greet the candidate by name and ask the first question."})
+            context.add_message({"role": "user", "content": "[Begin the interview now: start with the recording/AI-evaluation notice, then greet the candidate by name and ask the first question.]"})
         await worker.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_client_disconnected")

@@ -93,9 +93,11 @@ model Question {
   tags        String[]
   // pgvector column. Prisma Client has no first-class query API for it
   // (declared Unsupported on purpose) — cosine-similarity ranking happens
-  // via raw SQL from apps/interview-agent, not through this ORM. 1536 dims
-  // matches OpenAI's text-embedding-3-small.
-  embedding   Unsupported("vector(1536)")?
+  // via raw SQL from apps/interview-agent, not through this ORM. 768 dims
+  // matches nomic-embed-text, the default local embedding model (see
+  // apps/interview-agent's agent/config.py — LLM_EMBEDDING_MODEL). Swapping
+  // to a model with a different output size needs a matching migration.
+  embedding   Unsupported("vector(768)")?
   timesAsked  Int                 @default(0)
   lastAskedAt DateTime?
   createdAt   DateTime            @default(now())

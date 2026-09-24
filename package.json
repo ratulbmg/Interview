@@ -11,7 +11,7 @@
     "lint:fix": "turbo run lint -- --fix",
     "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
     "format:fix": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "agent:build": "cd apps/interview-agent && python3 -m venv .venv && .venv/bin/pip install -e .",
+    "agent:build": "bash scripts/setup-agent-venv.sh",
     "db:generate": "docker compose -f docker-compose.dev.yml exec api yarn workspace @repo/db db-generate",
     "db:migrate": "docker compose -f docker-compose.dev.yml exec api yarn workspace @repo/db db-migrate",
     "db:seed": "docker compose -f docker-compose.dev.yml exec api yarn workspace @repo/db db-seed",

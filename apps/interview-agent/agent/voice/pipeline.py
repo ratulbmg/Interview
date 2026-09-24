@@ -18,12 +18,12 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
     LLMUserAggregatorParams,
 )
-from pipecat.services.openai.llm import OpenAILLMService
-from pipecat.services.openai.stt import OpenAISTTService
-from pipecat.services.openai.tts import OpenAITTSService
+from pipecat.services.kokoro.tts import KokoroTTSService
+from pipecat.services.ollama.llm import OLLamaLLMService
+from pipecat.services.whisper.stt import WhisperSTTServiceMLX
 from pipecat.transports.base_transport import BaseTransport
 
-from agent.config import OPENAI_API_KEY, OPENAI_VOICE_CHAT_MODEL, OPENAI_VOICE_ID
+from agent.config import LLM_BASE_URL, VOICE_LLM_MODEL, VOICE_STT_MODEL, VOICE_TTS_VOICE
 from agent.voice.ready_rooms import ReadySession
 
 
@@ -60,18 +60,21 @@ def _build_system_instruction(session: ReadySession) -> str:
 def build_pipeline(transport: BaseTransport, session: ReadySession, resume_messages: list[dict] | None = None) -> tuple[Pipeline, LLMContext]:
     """`resume_messages` seeds the context on a reconnect (see server.py's
     on_client_disconnected/RECONNECT_GRACE_SECONDS, Phase 8) so the LLM
-    picks the conversation back up instead of starting over."""
-    stt = OpenAISTTService(api_key=OPENAI_API_KEY)
+    picks the conversation back up instead of starting over.
 
-    tts = OpenAITTSService(
-        api_key=OPENAI_API_KEY,
-        settings=OpenAITTSService.Settings(voice=OPENAI_VOICE_ID),
-    )
+    STT and TTS run fully local (MLX Whisper, Kokoro — no network call, no
+    external server); only the LLM talks to a server, defaulting to a
+    local Ollama instance via LLM_BASE_URL (see agent/config.py and
+    agent/llm_client.py's header comment for the same OpenAI-compatible
+    swap)."""
+    stt = WhisperSTTServiceMLX(settings=WhisperSTTServiceMLX.Settings(model=VOICE_STT_MODEL))
 
-    llm = OpenAILLMService(
-        api_key=OPENAI_API_KEY,
-        settings=OpenAILLMService.Settings(
-            model=OPENAI_VOICE_CHAT_MODEL,
+    tts = KokoroTTSService(settings=KokoroTTSService.Settings(voice=VOICE_TTS_VOICE))
+
+    llm = OLLamaLLMService(
+        base_url=LLM_BASE_URL,
+        settings=OLLamaLLMService.Settings(
+            model=VOICE_LLM_MODEL,
             system_instruction=_build_system_instruction(session),
         ),
     )

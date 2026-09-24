@@ -219,6 +219,15 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/${POSTGRES_DB:-interview}
       - AGENT_HOST=0.0.0.0
       - AGENT_PORT=7860
+      # Ollama runs on the host, not in this compose network —
+      # host.docker.internal reaches it from inside the container (Docker
+      # Desktop only). NOTE: VOICE_STT_MODEL defaults to MLX Whisper
+      # (apps/interview-agent/.env.example), which is Apple Silicon macOS
+      # only and will NOT run inside this Linux container — override
+      # VOICE_STT_MODEL to a faster-whisper model name and swap
+      # agent/voice/pipeline.py's WhisperSTTServiceMLX for WhisperSTTService
+      # before running the agent this way.
+      - LLM_BASE_URL=http://host.docker.internal:11434/v1
     depends_on:
       redis:
         condition: service_healthy

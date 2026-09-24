@@ -60,7 +60,12 @@ Copy each app/package's `.env.example` to `.env` before running natively
 
 - **Frontend:** Vite + React, Redux Toolkit Query
 - **Backend:** Express, Prisma, PostgreSQL (pgvector), Redis + BullMQ
-- **Voice agent:** Python + Pipecat (the only non-TypeScript app)
+- **Voice agent:** Python + Pipecat (the only non-TypeScript app; Python
+  3.12 specifically — kokoro-onnx doesn't support 3.14 yet). LLM/STT/TTS
+  default to fully local models (Ollama + MLX Whisper + Kokoro — see
+  apps/interview-agent/.env.example); point LLM_BASE_URL at OpenAI or
+  another OpenAI-compatible endpoint instead if you'd rather not run
+  everything locally.
 - **Tooling:** Turborepo, Yarn workspaces, ESLint (flat config), Prettier,
   Husky + lint-staged
 - **Infra:** Docker Compose for dev, GitHub Actions CI
