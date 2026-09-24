@@ -15,15 +15,24 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/interview")
 
 # Text LLM — CV parsing, scoring, and (via agent/interview_loop.py) the
-# text-only CLI's follow-ups (see agent/llm_client.py). Points at a local
-# Ollama server by default: the `openai` Python SDK works against it
-# unmodified since Ollama serves an OpenAI-compatible /v1 API — LLM_API_KEY
-# is a dummy value Ollama doesn't check, not a real credential. Point
-# LLM_BASE_URL at OpenAI (or any other OpenAI-compatible endpoint) instead
-# and set a real LLM_API_KEY to use that instead.
+# text-only CLI's follow-ups (see agent/llm_client.py). The `openai` SDK
+# works unmodified against any OpenAI-compatible /v1 API — Ollama, LM
+# Studio's server, llama.cpp's llama-server directly, or real OpenAI with a
+# real key. LLM_API_KEY is only checked by servers that enforce one (LM
+# Studio/llama-server do; Ollama doesn't care what's there).
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://localhost:11434/v1")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "ollama")
 LLM_CHAT_MODEL = os.environ.get("LLM_CHAT_MODEL", "qwen2.5:7b-instruct")
+
+# Embeddings get their own endpoint on purpose: whatever's serving
+# LLM_BASE_URL above may not have an embedding model loaded alongside its
+# chat model (e.g. LM Studio's per-model llama-server processes each serve
+# just the one model they were started with) — point this at whatever
+# actually has an embedding model loaded. Defaults to the same place as
+# LLM_BASE_URL when unset, which is correct for Ollama (it can serve both
+# from one process) but must be overridden for a setup like LM Studio's.
+EMBEDDING_BASE_URL = os.environ.get("EMBEDDING_BASE_URL", LLM_BASE_URL)
+EMBEDDING_API_KEY = os.environ.get("EMBEDDING_API_KEY", LLM_API_KEY)
 # nomic-embed-text is 768-dimensional — packages/db's Question.embedding
 # column is sized to match (see packages/db/prisma/schema.prisma). Changing
 # this to a model with a different output size needs a matching migration.

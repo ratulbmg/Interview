@@ -123,7 +123,7 @@ def get_questions() -> list[QuestionRecord]:
                 competency=row[2],
                 difficulty=row[3],
                 tags=row[4] or [],
-                embedding=list(row[5]) if row[5] is not None else None,
+                embedding=row[5].to_list() if row[5] is not None else None,
                 times_asked=row[6],
                 last_asked_at=row[7],
             )

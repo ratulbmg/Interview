@@ -19,11 +19,11 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMUserAggregatorParams,
 )
 from pipecat.services.kokoro.tts import KokoroTTSService
-from pipecat.services.ollama.llm import OLLamaLLMService
+from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.whisper.stt import WhisperSTTServiceMLX
 from pipecat.transports.base_transport import BaseTransport
 
-from agent.config import LLM_BASE_URL, VOICE_LLM_MODEL, VOICE_STT_MODEL, VOICE_TTS_VOICE
+from agent.config import LLM_API_KEY, LLM_BASE_URL, VOICE_LLM_MODEL, VOICE_STT_MODEL, VOICE_TTS_VOICE
 from agent.voice.ready_rooms import ReadySession
 
 
@@ -32,6 +32,14 @@ def _build_system_instruction(session: ReadySession) -> str:
         f"You are conducting a live, spoken job interview with {session.candidate_name} for the "
         f"{session.role_name} role. Speak naturally and conversationally — your responses are spoken "
         "aloud, so never use emojis, bullet points, markdown, or anything that can't be spoken.",
+        # Qwen3 (and some other reasoning models) burn several seconds
+        # thinking through a hidden chain-of-thought before every reply
+        # unless told not to — fine for CV parsing/scoring (not
+        # latency-sensitive, see llm_client.py), unacceptable for a live
+        # spoken turn. Harmless no-op text for a model that doesn't
+        # recognize the directive. Remove if VOICE_LLM_MODEL isn't a
+        # thinking model.
+        "/no_think",
         "",
         "Before anything else — this is the very first thing you say, before any question: tell the "
         "candidate this interview is being recorded and evaluated by an AI system, and ask them to "
@@ -63,17 +71,20 @@ def build_pipeline(transport: BaseTransport, session: ReadySession, resume_messa
     picks the conversation back up instead of starting over.
 
     STT and TTS run fully local (MLX Whisper, Kokoro — no network call, no
-    external server); only the LLM talks to a server, defaulting to a
-    local Ollama instance via LLM_BASE_URL (see agent/config.py and
-    agent/llm_client.py's header comment for the same OpenAI-compatible
-    swap)."""
+    external server); only the LLM talks to a server (LLM_BASE_URL — see
+    agent/config.py and agent/llm_client.py's header comment). Plain
+    OpenAILLMService rather than pipecat's OLLamaLLMService wrapper: that
+    wrapper hardcodes Ollama's dummy API key internally and has no way to
+    override it, which breaks any OpenAI-compatible server that actually
+    enforces one (LM Studio's does)."""
     stt = WhisperSTTServiceMLX(settings=WhisperSTTServiceMLX.Settings(model=VOICE_STT_MODEL))
 
     tts = KokoroTTSService(settings=KokoroTTSService.Settings(voice=VOICE_TTS_VOICE))
 
-    llm = OLLamaLLMService(
+    llm = OpenAILLMService(
         base_url=LLM_BASE_URL,
-        settings=OLLamaLLMService.Settings(
+        api_key=LLM_API_KEY,
+        settings=OpenAILLMService.Settings(
             model=VOICE_LLM_MODEL,
             system_instruction=_build_system_instruction(session),
         ),
