@@ -27,7 +27,21 @@ const devCorsOptions: CorsOptions = {
   origin: true,
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: "*",
+  // NOT "*" — the Fetch spec makes a literal wildcard invalid whenever the
+  // request carries credentials (ours always does, for the auth cookie),
+  // and Chrome enforces this: it rejects the preflight outright with
+  // "Request header field content-type is not allowed by
+  // Access-Control-Allow-Headers in preflight response" the moment
+  // credentials: 'include' is combined with allowedHeaders: "*" (confirmed
+  // via Chrome's own devtools). Has to be an explicit list once credentials
+  // are involved, same as the production corsOptions above.
+  allowedHeaders: [
+    "Origin",
+    "X-Requested-With",
+    "Content-Type",
+    "Accept",
+    "Authorization",
+  ],
 };
 
 /**
