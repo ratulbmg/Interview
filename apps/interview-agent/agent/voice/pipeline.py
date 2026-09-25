@@ -12,6 +12,7 @@ conversational loop to piggyback on there).
 """
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import (
@@ -96,7 +97,14 @@ def build_pipeline(transport: BaseTransport, session: ReadySession, resume_messa
     # speaking) and barge-in (new user speech interrupts the bot's TTS
     # mid-sentence) — both are default pipeline behavior once VAD is wired
     # in, not something built by hand here.
-    aggregators = LLMContextAggregatorPair(context, user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer()))
+    # Default stop_secs (0.2s) decides the candidate is done talking after a
+    # very short pause, splitting normal mid-sentence pauses into separate
+    # turns and making the bot interrupt/re-ask instead of waiting for a full
+    # answer — bump it so it waits for a more natural conversational gap.
+    aggregators = LLMContextAggregatorPair(
+        context,
+        user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.8))),
+    )
 
     pipeline = Pipeline(
         [

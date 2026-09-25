@@ -61,7 +61,7 @@ export default function Room() {
     try {
       await client.startBotAndConnect({
         endpoint: `${AGENT_PUBLIC_URL}/start`,
-        requestData: { transport: "webrtc", roomToken: token },
+        requestData: { transport: "webrtc", body: { roomToken: token } },
       });
     } catch {
       setState("error");
