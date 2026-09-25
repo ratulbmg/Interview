@@ -9,6 +9,15 @@ Run with: python -m agent.voice.server
 import asyncio
 import sys
 
+# agent.log_setup has zero pipecat imports of its own, deliberately: even
+# importing pipecat's frame dataclasses runs pipecat's package init, which
+# configures its own noisy DEBUG-level loguru handler as a side effect. This
+# has to be the first import in the file and configure_logging() has to run
+# before anything below it, or that handler wins instead.
+from agent.log_setup import configure_logging
+
+configure_logging()
+
 from loguru import logger
 from pipecat.frames.frames import EndFrame, LLMRunFrame, TTSSpeakFrame
 from pipecat.pipeline.pipeline import Pipeline
@@ -24,6 +33,7 @@ from agent import db
 from agent.config import AGENT_HOST, AGENT_PORT, VOICE_TTS_VOICE
 from agent.voice import pipeline as pipeline_module
 from agent.voice.consumer import start_consumer
+from agent.voice.conversation_log import ConversationLogObserver
 from agent.voice.ready_rooms import ReadySession, clear as clear_ready_room, get_ready_session
 from agent.voice.report import score_interview
 from agent.voice.webhook_client import post_transcript
@@ -81,12 +91,21 @@ async def _run_interview_bot(transport: BaseTransport, session: ReadySession, ro
     is_reconnect = len(session.transcript_so_far) > 0
     pipeline, context = pipeline_module.build_pipeline(transport, session, resume_messages=session.transcript_so_far)
 
-    worker = PipelineWorker(pipeline, params=PipelineParams(enable_metrics=True))
+    worker = PipelineWorker(
+        pipeline,
+        params=PipelineParams(enable_metrics=True),
+        observers=[ConversationLogObserver()],
+    )
     runner = WorkerRunner()
     await runner.add_workers(worker)
 
     session.connection_count += 1
     my_connection_id = session.connection_count
+
+    logger.info(
+        f"{'Reconnected to' if is_reconnect else 'Interview starting —'} session {session.session_id} "
+        f"({session.candidate_name}, {session.role_name})"
+    )
 
     if not is_reconnect:
         db.mark_session_in_progress(session.session_id)
@@ -142,6 +161,15 @@ async def bot(runner_args: RunnerArguments) -> None:
 
 @app.on_event("startup")
 async def _start_agent_jobs_consumer() -> None:
+    # Pipecat's own runner.main() resets logging to its own DEBUG-level
+    # handler right before this fires (see runner/run.py — `logger.remove()`
+    # + `logger.add(sys.stderr, level="DEBUG")` happens synchronously before
+    # uvicorn.run()), overriding the module-level configure_logging() call
+    # above. Re-applying it here is what actually makes it stick for the
+    # server's operating lifetime — everything that matters, since this is
+    # the very last thing that runs before the server starts accepting
+    # connections.
+    configure_logging()
     start_consumer()
     logger.info('agent: "agent-jobs" BullMQ consumer started')
 

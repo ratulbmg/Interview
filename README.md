@@ -50,11 +50,20 @@ runs on its own before the next one starts:
 ```bash
 corepack enable && corepack prepare yarn@4.11.0 --activate
 yarn install
-yarn dev   # Docker: Postgres + Redis + api + dashboard + email-worker + agent
-```
 
-Copy each app/package's `.env.example` to `.env` before running natively
-(`yarn dev:local`); the Docker path injects what it needs on its own.
+# One-time local infra, all native — no Docker:
+brew install redis mailpit && brew services start redis && brew services start mailpit
+ollama pull qwen3:30b-a3b && ollama pull nomic-embed-text
+
+# Copy each app/package's .env.example to .env, filling in DATABASE_URL
+# (a Neon — serverless Postgres — connection string works, and needs no
+# local Postgres install) and AGENT_WEBHOOK_SECRET.
+
+yarn workspace @repo/db db-migrate
+yarn workspace @repo/db db-seed
+yarn dev                            # api + dashboard + email-worker, via turbo
+python -m agent.voice.server        # interview-agent — run separately, see below
+```
 
 ## Stack
 
@@ -62,10 +71,14 @@ Copy each app/package's `.env.example` to `.env` before running natively
 - **Backend:** Express, Prisma, PostgreSQL (pgvector), Redis + BullMQ
 - **Voice agent:** Python + Pipecat (the only non-TypeScript app; Python
   3.12 specifically — kokoro-onnx doesn't support 3.14 yet). LLM/STT/TTS
-  default to fully local models (Ollama + MLX Whisper + Kokoro — see
-  apps/interview-agent/.env.example); point LLM_BASE_URL at OpenAI or
-  another OpenAI-compatible endpoint instead if you'd rather not run
-  everything locally.
+  default to fully local models — one Ollama install serving both chat
+  (`qwen3:30b-a3b`) and embeddings (`nomic-embed-text`), plus MLX Whisper
+  and Kokoro for STT/TTS (see apps/interview-agent/.env.example); point
+  `LLM_BASE_URL` at OpenAI or another OpenAI-compatible endpoint instead if
+  you'd rather not run the chat model locally.
 - **Tooling:** Turborepo, Yarn workspaces, ESLint (flat config), Prettier,
   Husky + lint-staged
-- **Infra:** Docker Compose for dev, GitHub Actions CI
+- **Infra (local dev):** no Docker — native Postgres (Neon) + Redis +
+  Mailpit + Ollama, all running directly on the host. GitHub Actions CI for
+  lint/format/build only. Deployment/production infra isn't built yet —
+  this repo is local-dev-only for now, by design (see Build plan below).

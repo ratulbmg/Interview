@@ -3,8 +3,8 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
-    "dev": "docker compose -f docker-compose.dev.yml up --build",
-    "dev:local": "turbo run dev",
+    "dev": "node scripts/dev.mjs",
+    "dev:apps": "turbo run dev",
     "start": "turbo run start",
     "prepare": "husky",
     "lint:check": "turbo run lint",
@@ -12,14 +12,10 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
     "format:fix": "prettier --write \"**/*.{ts,tsx,md}\"",
     "agent:build": "bash scripts/setup-agent-venv.sh",
-    "db:generate": "docker compose -f docker-compose.dev.yml exec api yarn workspace @repo/db db-generate",
-    "db:migrate": "docker compose -f docker-compose.dev.yml exec api yarn workspace @repo/db db-migrate",
-    "db:seed": "docker compose -f docker-compose.dev.yml exec api yarn workspace @repo/db db-seed",
-    "db:reset": "docker compose -f docker-compose.dev.yml exec api yarn workspace @repo/db db-reset",
-    "docker:dev:up": "docker compose -f docker-compose.dev.yml up -d",
-    "docker:dev:down": "docker compose -f docker-compose.dev.yml down",
-    "docker:dev:logs": "docker compose -f docker-compose.dev.yml logs -f",
-    "docker:dev:rebuild": "docker compose -f docker-compose.dev.yml build --no-cache"
+    "db:generate": "yarn workspace @repo/db db-generate",
+    "db:migrate": "yarn workspace @repo/db db-migrate",
+    "db:seed": "yarn workspace @repo/db db-seed",
+    "db:reset": "yarn workspace @repo/db db-reset"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [

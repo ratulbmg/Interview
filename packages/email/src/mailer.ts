@@ -3,9 +3,9 @@ import nodemailer, { Transporter } from "nodemailer";
 let transporter: Transporter | null = null;
 
 /** Lazily created so importing this module never requires SMTP env vars to
- * already be set — only sending an actual email does. Dev points this at
- * Mailhog (see docker-compose.dev.yml's mailhog service, no auth needed);
- * prod points it at a real SMTP relay. */
+ * already be set — only sending an actual email does. Dev points this at a
+ * native Mailpit install (no auth needed); prod points it at a real SMTP
+ * relay. */
 function getTransporter(): Transporter {
   if (!transporter) {
     transporter = nodemailer.createTransport({

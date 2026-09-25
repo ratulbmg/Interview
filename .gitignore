@@ -73,3 +73,7 @@ __pycache__/
 *.egg-info/
 apps/interview-agent/.venv
 apps/interview-agent/*.egg-info
+
+# --- Local Redis (scripts/dev.mjs runs it with --save "" now, but a dump
+# can still exist from before that, or from running redis-server by hand) ---
+dump.rdb

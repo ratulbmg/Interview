@@ -10,8 +10,7 @@
 # once avoids that.
 #
 # Picks python3.12 over plain python3 when available: kokoro-onnx (the
-# local TTS engine, see agent/voice/pipeline.py) doesn't support 3.14 yet,
-# and python3.12 is what docker/Dockerfile.agent.* already standardize on.
+# local TTS engine, see agent/voice/pipeline.py) doesn't support 3.14 yet.
 set -euo pipefail
 cd "$(dirname "$0")/../apps/interview-agent"
 

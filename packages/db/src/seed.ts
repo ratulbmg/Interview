@@ -152,9 +152,8 @@ const QUESTIONS: {
 ];
 
 async function main() {
-  // Guards against reseeding an already-populated database — this runs
-  // automatically on every dev container start (see docker-compose.dev.yml),
-  // not just on a fresh volume, so it has to be safe to call repeatedly.
+  // Guards against reseeding an already-populated database — `yarn db:seed`
+  // is safe to run repeatedly, not just against a fresh database.
   const existingRoleCount = await prisma.role.count();
   if (existingRoleCount > 0) {
     console.log("Database already seeded — skipping.");
