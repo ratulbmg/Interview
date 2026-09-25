@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Button, Card, Input, Label } from "@repo/ui";
 import { useLoginMutation } from "../../redux/api/authApi";
 
 export default function Login() {
@@ -19,53 +20,46 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm space-y-4 rounded border border-gray-200 bg-white p-8 shadow-sm"
-      >
-        <h1 className="text-lg font-semibold">Recruiter login</h1>
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-sm">
+        <form onSubmit={handleSubmit} className="space-y-4 p-8">
+          <h1 className="text-lg font-semibold text-foreground">
+            Recruiter login
+          </h1>
 
-        <div className="space-y-1">
-          <label className="block text-sm text-gray-600" htmlFor="email">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
 
-        <div className="space-y-1">
-          <label className="block text-sm text-gray-600" htmlFor="password">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
 
-        {error && (
-          <p className="text-sm text-red-600">Invalid email or password.</p>
-        )}
+          {error && (
+            <p className="text-sm text-destructive">
+              Invalid email or password.
+            </p>
+          )}
 
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {isLoading ? "Logging in…" : "Log in"}
-        </button>
-      </form>
+          <Button type="submit" disabled={isLoading} className="w-full">
+            {isLoading ? "Logging in…" : "Log in"}
+          </Button>
+        </form>
+      </Card>
     </div>
   );
 }

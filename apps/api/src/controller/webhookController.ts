@@ -11,7 +11,7 @@ export const receiveTranscript = asyncHandler(
     const { id } = idParamSchema.parse(req.params);
     const { transcript, report } = receiveTranscriptSchema.parse(req.body);
     // Zod validated the shape; the actual JSON content is arbitrary data
-    // from an external process (the Python agent), which is exactly what
+    // from an external process (the Python engine), which is exactly what
     // Prisma's Json column type is for.
     const response = await sessionService.receiveTranscript(
       id,

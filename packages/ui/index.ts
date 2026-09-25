@@ -1,7 +1,22 @@
 /**
- * Shared React components, consumed via @repo/ui by apps/dashboard. Built
- * out starting Phase 3 as the dashboard's actual pages need them — see the
- * build plan in README.md.
+ * Shared React components, consumed via @repo/ui by apps/dashboard. The
+ * design system (colors, radius scale) mirrors the Arowdox reference
+ * project's — see apps/dashboard/src/styles/globals.css's theme tokens.
  */
 
-export {};
+export { cn } from "./utils/cn";
+export { Button, type ButtonProps } from "./components/button";
+export { buttonVariants } from "./components/button-variants";
+export { Input } from "./components/input";
+export { Select } from "./components/select";
+export { Label } from "./components/label";
+export {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "./components/card";
+export { Badge, type BadgeProps } from "./components/badge";
+export { badgeVariants } from "./components/badge-variants";
+export { Modal, type ModalProps } from "./components/modal";

@@ -66,13 +66,13 @@ apps/api/uploads/*
 .stylelintcache
 .cache
 
-# --- Python (apps/interview-agent — not a yarn workspace) ---
+# --- Python (apps/interview-engine — not a yarn workspace) ---
 __pycache__/
 *.pyc
 .venv/
 *.egg-info/
-apps/interview-agent/.venv
-apps/interview-agent/*.egg-info
+apps/interview-engine/.venv
+apps/interview-engine/*.egg-info
 
 # --- Local Redis (scripts/dev.mjs runs it with --save "" now, but a dump
 # can still exist from before that, or from running redis-server by hand) ---

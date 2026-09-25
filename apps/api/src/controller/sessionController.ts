@@ -33,3 +33,11 @@ export const sendInvite = asyncHandler(async (req: Request, res: Response) => {
   const response = await sessionService.sendInvite(id);
   res.status(200).json(new ApiResponse(200, response, "Invite sent"));
 });
+
+export const deleteSession = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id } = idParamSchema.parse(req.params);
+    await sessionService.deleteSession(id);
+    res.status(200).json(new ApiResponse(200, null, "Session deleted"));
+  },
+);

@@ -1,11 +1,11 @@
 import { InterviewSession, Candidate, Role, Prisma } from "@repo/db/client";
-import { enqueueEmail } from "@repo/email";
+import { enqueueEmail } from "@repo/mailer";
 import { InterviewSessionStatus } from "../enum";
 import { apiError } from "../utils/apiError";
 import { ScheduleSessionRequest } from "../model/sessionModel";
 import { repositoryWrapper } from "../repository/repositoryWrapper";
 import { meetingProvider } from "../lib/meetingProvider";
-import { agentQueue, AgentStartJob, NoShowCheckJob } from "../lib/agentQueue";
+import { engineQueue, EngineStartJob, NoShowCheckJob } from "../lib/engineQueue";
 import { delayUntil, MINUTES, DAYS } from "../lib/scheduling";
 
 type SessionWithRelations = InterviewSession & {
@@ -25,6 +25,17 @@ class SessionService {
       throw new apiError("Session not found", 404);
     }
     return session;
+  }
+
+  /** Deletes only this one session — the candidate and any of their other
+   * sessions are untouched (unlike candidateService.deleteCandidate, which
+   * cascades the other direction). */
+  async deleteSession(id: number): Promise<void> {
+    const existing = await repositoryWrapper.sessionRepository.findById(id);
+    if (!existing) {
+      throw new apiError("Session not found", 404);
+    }
+    await repositoryWrapper.sessionRepository.delete(id);
   }
 
   /** Scheduling is a second, separate action from adding the candidate —
@@ -55,7 +66,7 @@ class SessionService {
   /**
    * Pressing "Send Invite" is the recruiter's last required action.
    * Everything from here runs on its own: a meeting URL is minted, the
-   * session moves to INVITE_SENT, and three emails plus one agent-start
+   * session moves to INVITE_SENT, and three emails plus one engine-start
    * job are scheduled as delayed jobs off scheduledAt — not three separate
    * recruiter actions.
    */
@@ -82,7 +93,7 @@ class SessionService {
     });
 
     await this.scheduleEmails(session, meetingUrl);
-    await this.scheduleAgentStart(session, meetingUrl);
+    await this.scheduleEngineStart(session, meetingUrl);
     await this.scheduleNoShowCheck(session);
 
     return updated;
@@ -123,9 +134,9 @@ class SessionService {
   }
 
   /**
-   * apps/interview-agent posts here once the candidate hangs up or the
-   * interview otherwise ends (see agent/voice/webhook_client.py), with the
-   * transcript and — since the agent already scored the interview itself
+   * apps/interview-engine posts here once the candidate hangs up or the
+   * interview otherwise ends (see engine/voice/webhook_client.py), with the
+   * transcript and — since the engine already scored the interview itself
    * right after it ended — the report. Stores both, marks the session
    * COMPLETED, and enqueues a report-ready email to every recruiter; none
    * of that needs a recruiter action to trigger.
@@ -180,32 +191,32 @@ class SessionService {
     }
   }
 
-  private async scheduleAgentStart(
+  private async scheduleEngineStart(
     session: SessionWithRelations,
     meetingUrl: string,
   ): Promise<void> {
-    const job: AgentStartJob = {
+    const job: EngineStartJob = {
       sessionId: session.id,
       candidateId: session.candidateId,
       roleId: session.roleId,
       meetingUrl,
       scheduledAt: session.scheduledAt.toISOString(),
     };
-    await agentQueue.add("agent-start", job, {
+    await engineQueue.add("engine-start", job, {
       delay: delayUntil(session.scheduledAt, 2 * MINUTES),
     });
   }
 
-  /** Fires 15 minutes after scheduledAt — apps/interview-agent marks the
+  /** Fires 15 minutes after scheduledAt — apps/interview-engine marks the
    * session NO_SHOW if it never actually started (see
-   * agent/voice/consumer.py's "noshow-check" handler, Phase 8). A negative
+   * engine/voice/consumer.py's "noshow-check" handler, Phase 8). A negative
    * offset to delayUntil is what pushes the target time past scheduledAt
    * instead of before it. */
   private async scheduleNoShowCheck(
     session: SessionWithRelations,
   ): Promise<void> {
     const job: NoShowCheckJob = { sessionId: session.id };
-    await agentQueue.add("noshow-check", job, {
+    await engineQueue.add("noshow-check", job, {
       delay: delayUntil(session.scheduledAt, -15 * MINUTES),
     });
   }

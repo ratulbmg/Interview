@@ -54,6 +54,12 @@ export const sessionsApi = baseApi.injectEndpoints({
       transformResponse: (response: ApiEnvelope<Session>) => response.data,
       invalidatesTags: ["Session"],
     }),
+    // Deletes only this session — the candidate and their other sessions
+    // are untouched.
+    deleteSession: builder.mutation<void, number>({
+      query: (id) => ({ url: `/sessions/${id}`, method: "DELETE" }),
+      invalidatesTags: ["Session"],
+    }),
   }),
 });
 
@@ -62,4 +68,5 @@ export const {
   useGetSessionQuery,
   useScheduleSessionMutation,
   useSendInviteMutation,
+  useDeleteSessionMutation,
 } = sessionsApi;

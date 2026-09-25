@@ -8,7 +8,7 @@ import bcrypt from "bcryptjs";
  *
  * A blueprint is an ordered array of slot objects. `competency` on a slot
  * is the value matched against Question.competency at selection time (see
- * apps/interview-agent's question_selector.py, Phase 2): for "opener",
+ * apps/interview-engine's question_selector.py, Phase 2): for "opener",
  * "cv_probe", "scenario", "behavioral" and "candidate_questions" slots it's
  * just the slot name itself; "core_competency" slots name a specific skill
  * instead.

@@ -1,10 +1,15 @@
 export { loginUser, logoutUser, meAccount } from "./authController";
-export { listCandidates, addCandidate } from "./candidateController";
+export {
+  listCandidates,
+  addCandidate,
+  deleteCandidate,
+} from "./candidateController";
 export {
   listSessions,
   getSession,
   scheduleSession,
   sendInvite,
+  deleteSession,
 } from "./sessionController";
 export { listRoles } from "./roleController";
 export { listQuestions } from "./questionController";

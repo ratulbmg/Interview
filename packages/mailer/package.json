@@ -1,0 +1,36 @@
+{
+  "name": "@repo/mailer",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "start": "tsx src/start.ts",
+    "dev": "nodemon",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@react-email/components": "^1.0.12",
+    "@react-email/render": "^2.1.0",
+    "@repo/shared-schemas": "*",
+    "bullmq": "^6.3.8",
+    "dotenv": "^17.4.2",
+    "ioredis": "^6.0.0",
+    "nodemailer": "^10.0.10",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "*",
+    "@repo/typescript-config": "*",
+    "@types/nodemailer": "^8.0.2",
+    "@types/react": "19.2.2",
+    "eslint": "^10.8.0",
+    "nodemon": "^3.1.14",
+    "tsx": "^4.23.5",
+    "typescript": "5.9.2"
+  }
+}

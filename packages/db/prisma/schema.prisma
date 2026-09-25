@@ -112,7 +112,7 @@ model Question {
 model InterviewSession {
   id             Int                    @id @default(autoincrement())
   candidateId    Int
-  candidate      Candidate              @relation(fields: [candidateId], references: [id])
+  candidate      Candidate              @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   roleId         Int
   role           Role                   @relation(fields: [roleId], references: [id])
   status         InterviewSessionStatus @default(SCHEDULED)

@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-// Single entry point for local dev: `yarn dev` / `npm run dev`.
+// Starts the native app processes for local dev: `yarn dev` / `npm run dev`.
 //
-// Replaces what docker-compose.dev.yml used to do — bring up everything
-// this project needs, in one command, and tear it all back down on
-// Ctrl+C — but for a project with no Docker any more (see the Interview
-// System Map artifact's "No Docker" section for why): Ollama, Redis and
-// Mailpit are plain local processes instead of containers, and the
-// Python interview-agent (not a yarn workspace member) is spawned
-// alongside the TypeScript apps instead of needing its own terminal.
+// Ollama and the Docker appliances (Redis, Mailpit, STT, TTS) are each
+// started by their own explicit command instead — `yarn ollama_up` and
+// `yarn docker_up`, run once before this. This script only checks they're
+// already reachable (failing fast with which command to run if not), then
+// starts the Python interview-engine (not a yarn workspace member, so it's
+// spawned here instead of needing its own terminal) alongside the
+// TypeScript apps via turbo.
 //
-// Anything already running when this starts (most likely Ollama, if
-// it's set up to launch at login) is left alone on shutdown — this script
-// only stops what it started itself.
+// Ctrl+C stops exactly what this script itself started (the engine + turbo)
+// — it never touches Ollama or the Docker appliances, since it never
+// started them.
 
 import { spawn } from "node:child_process";
 import http from "node:http";
@@ -20,7 +20,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const AGENT_DIR = path.join(ROOT, "apps/interview-agent");
+const ENGINE_DIR = path.join(ROOT, "apps/interview-engine");
 
 // Only ever holds things this script actually spawned — a service that
 // was already running is never added here, so shutdown() never touches it.
@@ -90,23 +90,18 @@ function checkTcp(port) {
   });
 }
 
-async function waitUntil(checkFn, { attempts = 20, delayMs = 500 } = {}) {
-  for (let i = 0; i < attempts; i++) {
-    if (await checkFn()) return true;
-    await new Promise((r) => setTimeout(r, delayMs));
-  }
-  return false;
-}
-
+// Ollama, Redis, and Mailpit are no longer started here — each is brought
+// up by its own explicit command (`yarn ollama_up` / `yarn docker_up`) run
+// before `yarn dev`. This just verifies they're actually up and fails fast
+// with the right command to run otherwise, rather than silently starting
+// them itself.
 async function ensureOllama() {
   if (await checkHttp("http://localhost:11434/api/tags")) {
     log("ollama", "already running — leaving it alone");
     return;
   }
-  log("ollama", "not running, starting `ollama serve`...");
-  spawnManaged("ollama", "ollama", ["serve"]);
-  const ok = await waitUntil(() => checkHttp("http://localhost:11434/api/tags"));
-  log("ollama", ok ? "ready" : "WARNING: did not come up in time — is Ollama installed?");
+  log("ollama", "ERROR: not reachable on :11434 — run `yarn ollama_up` first.");
+  process.exit(1);
 }
 
 async function ensureRedis() {
@@ -114,13 +109,8 @@ async function ensureRedis() {
     log("redis", "already running — leaving it alone");
     return;
   }
-  log("redis", "not running, starting redis-server...");
-  // --save "" disables RDB snapshotting: this queue is disposable dev data
-  // (email/agent-jobs), and without this it drops a dump.rdb in whatever
-  // directory the shell happened to be in on every shutdown.
-  spawnManaged("redis", "redis-server", ["--port", "6379", "--save", ""]);
-  const ok = await waitUntil(() => checkTcp(6379));
-  log("redis", ok ? "ready" : "WARNING: did not come up in time — is redis installed? (brew install redis)");
+  log("redis", "ERROR: not reachable on :6379 — run `yarn docker_up` first.");
+  process.exit(1);
 }
 
 async function ensureMailpit() {
@@ -128,21 +118,19 @@ async function ensureMailpit() {
     log("mailpit", "already running — leaving it alone");
     return;
   }
-  log("mailpit", "not running, starting mailpit...");
-  spawnManaged("mailpit", "mailpit", []);
-  const ok = await waitUntil(() => checkTcp(1025));
-  log("mailpit", ok ? "ready — UI at http://localhost:8025" : "WARNING: did not come up in time — is mailpit installed? (brew install mailpit)");
+  log("mailpit", "ERROR: not reachable on :1025 — run `yarn docker_up` first.");
+  process.exit(1);
 }
 
-function startAgent() {
-  log("agent", "starting interview-agent voice server...");
-  spawnManaged("agent", path.join(AGENT_DIR, ".venv/bin/python"), ["-m", "agent.voice.server"], {
-    cwd: AGENT_DIR,
+function startEngine() {
+  log("engine", "starting interview-engine voice server...");
+  spawnManaged("engine", path.join(ENGINE_DIR, ".venv/bin/python"), ["-m", "engine.voice.server"], {
+    cwd: ENGINE_DIR,
   });
 }
 
 function startTurbo() {
-  log("dev", "starting api + dashboard + email-worker (turbo run dev)...");
+  log("dev", "starting api + dashboard + mailer (turbo run dev)...");
   // Inherits stdio — turbo already prefixes/colors each workspace's output.
   spawnManaged("turbo", "yarn", ["turbo", "run", "dev"], { inherit: true });
 }
@@ -184,7 +172,7 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
   await ensureOllama();
   await ensureRedis();
   await ensureMailpit();
-  startAgent();
+  startEngine();
   startTurbo();
 
   log("dev", "all services starting — Ctrl+C to stop everything this session owns.");

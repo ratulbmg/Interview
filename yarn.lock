@@ -1354,27 +1354,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@repo/email@npm:*, @repo/email@workspace:packages/email":
-  version: 0.0.0-use.local
-  resolution: "@repo/email@workspace:packages/email"
-  dependencies:
-    "@react-email/components": "npm:^1.0.12"
-    "@react-email/render": "npm:^2.1.0"
-    "@repo/eslint-config": "npm:*"
-    "@repo/shared-schemas": "npm:*"
-    "@repo/typescript-config": "npm:*"
-    "@types/nodemailer": "npm:^8.0.2"
-    "@types/react": "npm:19.2.2"
-    bullmq: "npm:^6.3.8"
-    eslint: "npm:^10.8.0"
-    ioredis: "npm:^6.0.0"
-    nodemailer: "npm:^10.0.10"
-    react: "npm:^19.2.0"
-    react-dom: "npm:^19.2.0"
-    typescript: "npm:5.9.2"
-  languageName: unknown
-  linkType: soft
-
 "@repo/enums@npm:*, @repo/enums@workspace:packages/enums":
   version: 0.0.0-use.local
   resolution: "@repo/enums@workspace:packages/enums"
@@ -1399,6 +1378,30 @@ __metadata:
     globals: "npm:^17.7.0"
   peerDependencies:
     eslint: ^9.0.0 || ^10.0.0
+  languageName: unknown
+  linkType: soft
+
+"@repo/mailer@npm:*, @repo/mailer@workspace:packages/mailer":
+  version: 0.0.0-use.local
+  resolution: "@repo/mailer@workspace:packages/mailer"
+  dependencies:
+    "@react-email/components": "npm:^1.0.12"
+    "@react-email/render": "npm:^2.1.0"
+    "@repo/eslint-config": "npm:*"
+    "@repo/shared-schemas": "npm:*"
+    "@repo/typescript-config": "npm:*"
+    "@types/nodemailer": "npm:^8.0.2"
+    "@types/react": "npm:19.2.2"
+    bullmq: "npm:^6.3.8"
+    dotenv: "npm:^17.4.2"
+    eslint: "npm:^10.8.0"
+    ioredis: "npm:^6.0.0"
+    nodemailer: "npm:^10.0.10"
+    nodemon: "npm:^3.1.14"
+    react: "npm:^19.2.0"
+    react-dom: "npm:^19.2.0"
+    tsx: "npm:^4.23.5"
+    typescript: "npm:5.9.2"
   languageName: unknown
   linkType: soft
 
@@ -1433,9 +1436,12 @@ __metadata:
     "@repo/typescript-config": "npm:*"
     "@types/react": "npm:19.2.2"
     "@types/react-dom": "npm:19.2.2"
+    class-variance-authority: "npm:^0.7.1"
+    clsx: "npm:^2.1.1"
     eslint: "npm:^10.8.0"
     react: "npm:^19.2.0"
     react-dom: "npm:^19.2.0"
+    tailwind-merge: "npm:^3.4.0"
     typescript: "npm:5.9.2"
   languageName: unknown
   linkType: soft
@@ -2587,9 +2593,9 @@ __metadata:
   resolution: "api@workspace:apps/api"
   dependencies:
     "@repo/db": "npm:*"
-    "@repo/email": "npm:*"
     "@repo/enums": "npm:*"
     "@repo/eslint-config": "npm:*"
+    "@repo/mailer": "npm:*"
     "@types/cookie-parser": "npm:^1.4.10"
     "@types/cors": "npm:^2.8.19"
     "@types/express": "npm:^5.0.6"
@@ -2892,6 +2898,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"class-variance-authority@npm:^0.7.1":
+  version: 0.7.1
+  resolution: "class-variance-authority@npm:0.7.1"
+  dependencies:
+    clsx: "npm:^2.1.1"
+  checksum: 10c0/0f438cea22131808b99272de0fa933c2532d5659773bfec0c583de7b3f038378996d3350683426b8e9c74a6286699382106d71fbec52f0dd5fbb191792cccb5b
+  languageName: node
+  linkType: hard
+
 "classnames@npm:^2.3.1":
   version: 2.5.1
   resolution: "classnames@npm:2.5.1"
@@ -2907,6 +2922,13 @@ __metadata:
     kind-of: "npm:^6.0.2"
     shallow-clone: "npm:^3.0.0"
   checksum: 10c0/637753615aa24adf0f2d505947a1bb75e63964309034a1cf56ba4b1f30af155201edd38d26ffe26911adaae267a3c138b344a4947d39f5fc1b6d6108125aa758
+  languageName: node
+  linkType: hard
+
+"clsx@npm:^2.1.1":
+  version: 2.1.1
+  resolution: "clsx@npm:2.1.1"
+  checksum: 10c0/c4c8eb865f8c82baab07e71bfa8897c73454881c4f99d6bc81585aecd7c441746c1399d08363dc096c550cceaf97bd4ce1e8854e1771e9998d9f94c4fe075839
   languageName: node
   linkType: hard
 
@@ -3168,6 +3190,7 @@ __metadata:
     globals: "npm:^17.7.0"
     react: "npm:^19.2.8"
     react-dom: "npm:^19.2.8"
+    react-icons: "npm:^5.5.0"
     react-redux: "npm:^9.3.0"
     react-router-dom: "npm:^7.18.2"
     tailwindcss: "npm:^4.3.3"
@@ -3355,21 +3378,6 @@ __metadata:
   checksum: 10c0/e2216a7439c9dc65413e5f8d9e46bf829c32dacbfd869585bae8f8775b3cd5802d0ac9ccf0f45ad14decfa622244a092533263cc3a596e6d82e8247bf6bf84d7
   languageName: node
   linkType: hard
-
-"email-worker@workspace:apps/email-worker":
-  version: 0.0.0-use.local
-  resolution: "email-worker@workspace:apps/email-worker"
-  dependencies:
-    "@repo/email": "npm:*"
-    "@repo/eslint-config": "npm:*"
-    dotenv: "npm:^17.4.2"
-    eslint: "npm:^10.8.0"
-    nodemon: "npm:^3.1.14"
-    prettier: "npm:^3.9.6"
-    tsx: "npm:^4.23.5"
-    typescript: "npm:5.9.2"
-  languageName: unknown
-  linkType: soft
 
 "empathic@npm:2.0.0":
   version: 2.0.0
@@ -5635,6 +5643,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-icons@npm:^5.5.0":
+  version: 5.7.0
+  resolution: "react-icons@npm:5.7.0"
+  peerDependencies:
+    react: "*"
+  checksum: 10c0/cc5ae92e61ef9d8fc83cb3f3ac2710deab9174c5831bdaf2a94b099acfc91074a60d4b3adfd3165dcb9b21799ca6c760b3f4f6596d75198c1ed2ea44240818c8
+  languageName: node
+  linkType: hard
+
 "react-redux@npm:^9.3.0":
   version: 9.3.0
   resolution: "react-redux@npm:9.3.0"
@@ -6119,6 +6136,13 @@ __metadata:
   dependencies:
     has-flag: "npm:^3.0.0"
   checksum: 10c0/6ae5ff319bfbb021f8a86da8ea1f8db52fac8bd4d499492e30ec17095b58af11f0c55f8577390a749b1c4dde691b6a0315dab78f5f54c9b3d83f8fb5905c1c05
+  languageName: node
+  linkType: hard
+
+"tailwind-merge@npm:^3.4.0":
+  version: 3.7.0
+  resolution: "tailwind-merge@npm:3.7.0"
+  checksum: 10c0/1b1439fe30b6ee63fc3abc1c985bf9beb8529eb2db21cc321bd8c7cf73f36cd4ec80846ea10af8ae09175810f385336c22a6ce355a0b5cce69432d49672f90c1
   languageName: node
   linkType: hard
 

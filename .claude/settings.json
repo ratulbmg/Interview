@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(redis-cli -h localhost -p 6379 hgetall \"bull:agent-jobs:1\")",
+      "Bash(redis-cli -h localhost -p 6379 lrange \"bull:agent-jobs:active\" 0 -1)",
+      "Bash(redis-cli -h localhost -p 6379 xrange \"bull:agent-jobs:events\" - +)",
+      "Bash(redis-cli -h localhost -p 6379 lrange \"bull:agent-jobs:wait\" 0 -1)",
+      "Bash(redis-cli -h localhost -p 6379 get \"bull:agent-jobs:1:lock\")",
+      "Bash(redis-cli -h localhost -p 6379 ttl \"bull:agent-jobs:1:lock\")"
+    ]
+  }
+}

@@ -3,7 +3,7 @@ import { candidateService } from "../service";
 import { ApiResponse } from "../utils/apiResponse";
 import { asyncHandler } from "../utils/asyncHandler";
 import { apiError } from "../utils/apiError";
-import { addCandidateSchema } from "../validation";
+import { addCandidateSchema, idParamSchema } from "../validation";
 
 export const listCandidates = asyncHandler(
   async (req: Request, res: Response) => {
@@ -20,5 +20,15 @@ export const addCandidate = asyncHandler(
     }
     const response = await candidateService.addCandidate(validated, req.file);
     res.status(201).json(new ApiResponse(201, response, "Candidate added"));
+  },
+);
+
+export const deleteCandidate = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id } = idParamSchema.parse(req.params);
+    await candidateService.deleteCandidate(id);
+    res
+      .status(200)
+      .json(new ApiResponse(200, null, "Candidate and their sessions deleted"));
   },
 );

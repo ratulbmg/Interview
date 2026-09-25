@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { PipecatClient, RTVIEvent } from "@pipecat-ai/client-js";
 import { SmallWebRTCTransport } from "@pipecat-ai/small-webrtc-transport";
-import { AGENT_PUBLIC_URL } from "../../config/agent";
+import {
+  TbAlertTriangle,
+  TbMicrophone,
+  TbMicrophoneOff,
+  TbPhoneOff,
+} from "react-icons/tb";
+import { ENGINE_PUBLIC_URL } from "../../config/engine";
 
 type ConnectionState = "idle" | "connecting" | "connected" | "ended" | "error";
 
@@ -12,8 +18,11 @@ type ConnectionState = "idle" | "connecting" | "connected" | "ended" | "error";
  * `/room/:token` URL). Public route — candidates never log in, so this
  * page lives outside ProtectedRoute (see app/routes.tsx).
  *
- * Connects directly to apps/interview-agent's voice server (Phase 6), not
- * to this app's own API.
+ * Connects directly to apps/interview-engine's voice server (Phase 6), not
+ * to this app's own API. Deliberately its own dark theme, distinct from
+ * the recruiter dashboard's light one — a live-call screen, not an admin
+ * page — but built with the same care: real layout, icons, and states
+ * instead of a bare background with plain text.
  */
 export default function Room() {
   const { token } = useParams<{ token: string }>();
@@ -60,7 +69,7 @@ export default function Room() {
 
     try {
       await client.startBotAndConnect({
-        endpoint: `${AGENT_PUBLIC_URL}/start`,
+        endpoint: `${ENGINE_PUBLIC_URL}/start`,
         requestData: { transport: "webrtc", body: { roomToken: token } },
       });
     } catch {
@@ -78,48 +87,87 @@ export default function Room() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-900 text-white">
-      <h1 className="text-xl font-semibold">Interview Room</h1>
-
-      {state === "idle" && (
-        <button
-          onClick={connect}
-          className="rounded bg-blue-600 px-6 py-3 text-sm font-medium hover:bg-blue-700"
-        >
-          Join interview
-        </button>
-      )}
-
-      {state === "connecting" && (
-        <p className="text-sm text-gray-300">Connecting…</p>
-      )}
-
-      {state === "connected" && (
-        <div className="flex flex-col items-center gap-4">
-          <p className="text-sm text-green-400">
-            Connected — the interview is in progress.
-          </p>
-          <button
-            onClick={toggleMic}
-            className="rounded border border-gray-500 px-4 py-2 text-sm hover:bg-gray-800"
-          >
-            {micEnabled ? "Mute mic" : "Unmute mic"}
-          </button>
-        </div>
-      )}
-
-      {state === "ended" && (
-        <p className="text-sm text-gray-300">
-          The interview has ended. You can close this tab.
+    <div className="flex min-h-screen items-center justify-center bg-neutral-950 p-4">
+      <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-8 text-center shadow-2xl">
+        <p className="mb-1 text-xs font-semibold tracking-wide text-neutral-500">
+          INTERVIEW PLATFORM
         </p>
-      )}
+        <h1 className="mb-6 text-lg font-semibold text-white">
+          Interview Room
+        </h1>
 
-      {state === "error" && (
-        <p className="text-sm text-red-400">
-          Couldn't connect. If your interview time hasn't arrived yet, come back
-          a couple of minutes early.
-        </p>
-      )}
+        {state === "idle" && (
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex size-16 items-center justify-center rounded-full bg-neutral-800">
+              <TbMicrophone className="size-7 text-neutral-300" />
+            </div>
+            <p className="text-sm text-neutral-400">
+              Ready to begin? Make sure your mic is working before you join.
+            </p>
+            <button
+              onClick={connect}
+              className="w-full rounded-md bg-white px-6 py-3 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-200"
+            >
+              Join interview
+            </button>
+          </div>
+        )}
+
+        {state === "connecting" && (
+          <div className="flex flex-col items-center gap-4">
+            <div className="size-8 animate-spin rounded-full border-2 border-neutral-700 border-t-white" />
+            <p className="text-sm text-neutral-400">Connecting…</p>
+          </div>
+        )}
+
+        {state === "connected" && (
+          <div className="flex flex-col items-center gap-5">
+            <div className="flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1">
+              <span className="size-2 animate-pulse rounded-full bg-emerald-400" />
+              <span className="text-xs font-medium text-emerald-400">
+                Interview in progress
+              </span>
+            </div>
+            <button
+              onClick={toggleMic}
+              className="flex size-14 items-center justify-center rounded-full border border-neutral-700 text-neutral-200 transition-colors hover:bg-neutral-800"
+              aria-label={micEnabled ? "Mute mic" : "Unmute mic"}
+            >
+              {micEnabled ? (
+                <TbMicrophone className="size-6" />
+              ) : (
+                <TbMicrophoneOff className="size-6" />
+              )}
+            </button>
+            <p className="text-xs text-neutral-500">
+              {micEnabled ? "Mic is on" : "Mic is muted"}
+            </p>
+          </div>
+        )}
+
+        {state === "ended" && (
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex size-14 items-center justify-center rounded-full bg-neutral-800">
+              <TbPhoneOff className="size-6 text-neutral-400" />
+            </div>
+            <p className="text-sm text-neutral-300">
+              The interview has ended. You can close this tab.
+            </p>
+          </div>
+        )}
+
+        {state === "error" && (
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex size-14 items-center justify-center rounded-full bg-red-500/10">
+              <TbAlertTriangle className="size-6 text-red-400" />
+            </div>
+            <p className="text-sm text-red-400">
+              Couldn't connect. If your interview time hasn't arrived yet,
+              come back a couple of minutes early.
+            </p>
+          </div>
+        )}
+      </div>
 
       <div ref={audioContainerRef} hidden />
     </div>

@@ -3,7 +3,7 @@
  * meaning is fixed across the whole product.
  *
  * This package has zero runtime dependencies on purpose: it must be safe to
- * import from a Node backend (apps/api, apps/email-worker) and from a
+ * import from a Node backend (apps/api, packages/mailer) and from a
  * browser bundle (apps/dashboard) alike, so nothing here can pull in
  * Prisma, `pg`, or any other Node-only package.
  *

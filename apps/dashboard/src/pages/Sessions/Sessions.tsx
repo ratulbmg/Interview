@@ -1,12 +1,27 @@
 import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
+import { Badge, Button, Card, Label, Select } from "@repo/ui";
+import type { BadgeProps } from "@repo/ui";
 import { useListCandidatesQuery } from "../../redux/api/candidatesApi";
 import { useListRolesQuery } from "../../redux/api/rolesApi";
 import {
+  useDeleteSessionMutation,
   useListSessionsQuery,
   useScheduleSessionMutation,
   useSendInviteMutation,
 } from "../../redux/api/sessionsApi";
+
+/** Grayscale palette (see globals.css) has no room for a full traffic-light
+ * status system — this maps each status to the closest neutral meaning
+ * instead: not yet acted on, actively moving, done, or didn't happen. */
+const STATUS_VARIANT: Record<string, NonNullable<BadgeProps["variant"]>> = {
+  SCHEDULED: "secondary",
+  INVITE_SENT: "default",
+  IN_PROGRESS: "default",
+  COMPLETED: "secondary",
+  NO_SHOW: "destructive",
+  CANCELLED: "destructive",
+};
 
 /**
  * Scheduling (pick a candidate, a role, a date/time) and sending the
@@ -22,6 +37,7 @@ export default function Sessions() {
   const [scheduleSession, { isLoading: isScheduling }] =
     useScheduleSessionMutation();
   const [sendInvite, { isLoading: isSendingInvite }] = useSendInviteMutation();
+  const [deleteSession] = useDeleteSessionMutation();
 
   const [candidateId, setCandidateId] = useState("");
   const [roleId, setRoleId] = useState("");
@@ -39,137 +55,159 @@ export default function Sessions() {
     setScheduledAt("");
   };
 
+  const handleDelete = async (sessionId: number, label: string) => {
+    const confirmed = window.confirm(`Delete the interview session for ${label}?`);
+    if (!confirmed) return;
+    await deleteSession(sessionId).unwrap();
+  };
+
   return (
     <div className="space-y-8">
       <section>
-        <h1 className="mb-4 text-lg font-semibold">Schedule an interview</h1>
-        <form
-          onSubmit={handleSubmit}
-          className="flex flex-wrap items-end gap-3 rounded border border-gray-200 bg-white p-4"
-        >
-          <div className="space-y-1">
-            <label className="block text-sm text-gray-600" htmlFor="candidate">
-              Candidate
-            </label>
-            <select
-              id="candidate"
-              required
-              value={candidateId}
-              onChange={(e) => setCandidateId(e.target.value)}
-              className="rounded border border-gray-300 px-3 py-2 text-sm"
-            >
-              <option value="" disabled>
-                Select a candidate
-              </option>
-              {candidates?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name ?? c.email}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="block text-sm text-gray-600" htmlFor="role">
-              Role
-            </label>
-            <select
-              id="role"
-              required
-              value={roleId}
-              onChange={(e) => setRoleId(e.target.value)}
-              className="rounded border border-gray-300 px-3 py-2 text-sm"
-            >
-              <option value="" disabled>
-                Select a role
-              </option>
-              {roles?.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label
-              className="block text-sm text-gray-600"
-              htmlFor="scheduledAt"
-            >
-              Date &amp; time
-            </label>
-            <input
-              id="scheduledAt"
-              type="datetime-local"
-              required
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              className="rounded border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={isScheduling}
-            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        <h1 className="mb-4 text-lg font-semibold text-foreground">
+          Schedule an interview
+        </h1>
+        <Card>
+          <form
+            onSubmit={handleSubmit}
+            className="flex flex-wrap items-end gap-3 p-4"
           >
-            {isScheduling ? "Scheduling…" : "Schedule"}
-          </button>
-        </form>
+            <div className="space-y-1.5">
+              <Label htmlFor="candidate">Candidate</Label>
+              <Select
+                id="candidate"
+                required
+                value={candidateId}
+                onChange={(e) => setCandidateId(e.target.value)}
+              >
+                <option value="" disabled>
+                  Select a candidate
+                </option>
+                {candidates?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name ?? c.email}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="role">Role</Label>
+              <Select
+                id="role"
+                required
+                value={roleId}
+                onChange={(e) => setRoleId(e.target.value)}
+              >
+                <option value="" disabled>
+                  Select a role
+                </option>
+                {roles?.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="scheduledAt">Date &amp; time</Label>
+              <input
+                id="scheduledAt"
+                type="datetime-local"
+                required
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              />
+            </div>
+            <Button type="submit" disabled={isScheduling}>
+              {isScheduling ? "Scheduling…" : "Schedule"}
+            </Button>
+          </form>
+        </Card>
       </section>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold">Sessions</h2>
+        <h2 className="mb-4 text-lg font-semibold text-foreground">
+          Sessions
+        </h2>
         {isLoading ? (
-          <p className="text-sm text-gray-500">Loading…</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
-          <table className="w-full border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 text-gray-500">
-                <th className="py-2">Candidate</th>
-                <th className="py-2">Role</th>
-                <th className="py-2">Scheduled</th>
-                <th className="py-2">Status</th>
-                <th className="py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sessions?.map((session) => (
-                <tr key={session.id} className="border-b border-gray-100">
-                  <td className="py-2">
-                    {session.candidate.name ?? session.candidate.email}
-                  </td>
-                  <td className="py-2">{session.role.name}</td>
-                  <td className="py-2">
-                    {new Date(session.scheduledAt).toLocaleString()}
-                  </td>
-                  <td className="py-2">{session.status}</td>
-                  <td className="py-2 text-right">
-                    {session.status === "SCHEDULED" ? (
-                      <button
-                        onClick={() => sendInvite(session.id)}
-                        disabled={isSendingInvite}
-                        className="rounded bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
-                      >
-                        Send Invite
-                      </button>
-                    ) : (
-                      <Link
-                        to={`/sessions/${session.id}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        View
-                      </Link>
-                    )}
-                  </td>
+          <div className="overflow-hidden rounded-lg border border-border">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="bg-muted/50 text-muted-foreground">
+                  <th className="px-4 py-3 font-medium">Candidate</th>
+                  <th className="px-4 py-3 font-medium">Role</th>
+                  <th className="px-4 py-3 font-medium">Scheduled</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3"></th>
                 </tr>
-              ))}
-              {sessions?.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-4 text-center text-gray-400">
-                    No sessions yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {sessions?.map((session) => (
+                  <tr key={session.id}>
+                    <td className="px-4 py-3 text-foreground">
+                      {session.candidate.name ?? session.candidate.email}
+                    </td>
+                    <td className="px-4 py-3 text-foreground">
+                      {session.role.name}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {new Date(session.scheduledAt).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={STATUS_VARIANT[session.status]}>
+                        {session.status}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-3">
+                        {session.status === "SCHEDULED" ? (
+                          <Button
+                            size="sm"
+                            onClick={() => sendInvite(session.id)}
+                            disabled={isSendingInvite}
+                          >
+                            Send Invite
+                          </Button>
+                        ) : (
+                          <Link
+                            to={`/sessions/${session.id}`}
+                            className="text-sm text-primary hover:underline"
+                          >
+                            View
+                          </Link>
+                        )}
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() =>
+                            handleDelete(
+                              session.id,
+                              session.candidate.name ?? session.candidate.email,
+                            )
+                          }
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {sessions?.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-4 py-6 text-center text-muted-foreground"
+                    >
+                      No sessions yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>

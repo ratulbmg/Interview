@@ -6,11 +6,11 @@
       "persistent": true
     },
     "build": {
-      "dependsOn": ["^build", "//#agent:build"],
+      "dependsOn": ["^build", "//#engine:build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["dist/**"]
     },
-    "//#agent:build": {
+    "//#engine:build": {
       "cache": false,
       "outputs": []
     },

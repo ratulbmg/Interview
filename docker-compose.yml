@@ -1,0 +1,108 @@
+# =============================================================================
+# Docker Compose — local dev appliances only
+# =============================================================================
+# Five independent services, all pre-built images (no build context, nothing
+# to rebuild): Redis, Mailpit, the voice pipeline's STT/TTS engines, and a
+# dedicated Ollama instance just for embeddings.
+#
+# Deliberately NOT here: Postgres (Neon, cloud — see packages/db/.env), the
+# CHAT Ollama model (native, GPU/Metal passthrough doesn't exist in Docker
+# Desktop on Mac — see scripts/ollama-up.mjs; qwen3:30b-a3b is large and
+# latency-sensitive enough that CPU-only isn't acceptable there), and the
+# app processes themselves (api, dashboard, mailer, interview-engine —
+# started by `yarn dev`).
+#
+# STT/TTS/embeddings all run here as an explicit trade-off: Docker Desktop
+# on Mac has no GPU passthrough, so these run CPU-only — slower than native
+# would be, but tolerable for what they're doing (STT/TTS: containerized on
+# request; embeddings: a single forward pass per text, not autoregressive
+# generation, so CPU cost is much smaller than it would be for the chat
+# model). MLX Whisper itself is Apple-Silicon/macOS-only and cannot run in
+# a Linux container at all, so the STT/TTS engines underneath are swapped
+# too: faster-whisper (via speaches) for STT, ONNX Kokoro (via
+# kokoro-fastapi) for TTS — both exposing an OpenAI-compatible API, which is
+# what apps/interview-engine/engine/voice/pipeline.py's OpenAISTTService/
+# OpenAITTSService talk to. The embeddings service is plain Ollama itself
+# (official image) — no engine swap needed there, just a second instance on
+# a different port, which is exactly what
+# apps/interview-engine/engine/config.py's separate EMBEDDING_BASE_URL was
+# already built to support (the same split LM Studio setups need).
+#
+# Usage:
+#   yarn docker_up      # docker compose up -d
+#   yarn docker_down    # docker compose down
+#   yarn docker_logs    # docker compose logs -f
+# =============================================================================
+
+volumes:
+  stt_model_cache:
+    name: interview_stt_model_cache
+  embeddings_data:
+    name: interview_embeddings_data
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: interview-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mailpit:
+    image: axllent/mailpit
+    container_name: interview-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP — packages/mailer/src/mailer.ts's default
+      - "8025:8025" # Web UI
+
+  # Speech-to-text — OpenAI-compatible /v1/audio/transcriptions, faster-whisper
+  # under the hood. Unlike Ollama, speaches does NOT lazy-download a model on
+  # first inference request — it 400s until you explicitly pull one first:
+  #   curl -X POST http://localhost:8000/v1/models/Systran/faster-whisper-small
+  # (one-time; cached in the named volume below, matches VOICE_STT_MODEL in
+  # apps/interview-engine/engine/config.py).
+  stt:
+    image: ghcr.io/speaches-ai/speaches:latest-cpu
+    container_name: interview-stt
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - stt_model_cache:/home/ubuntu/.cache/huggingface/hub
+
+  # Text-to-speech — OpenAI-compatible /v1/audio/speech, Kokoro under the
+  # hood. VOICE_TTS_VOICE must be a name pipecat's OpenAISTTService/
+  # OpenAITTSService client accepts (real OpenAI's voice list, e.g.
+  # "alloy") — it validates client-side before the request ever reaches
+  # this container, so Kokoro's own voice names (e.g. "af_heart") get
+  # rejected before they'd even get here, even though Kokoro itself would
+  # accept them fine.
+  tts:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+    container_name: interview-tts
+    restart: unless-stopped
+    ports:
+      - "8880:8880"
+
+  # Embeddings — plain Ollama (official image), serving nomic-embed-text
+  # only. Mapped to :11435, not :11434, so it never collides with the
+  # native Ollama instance (chat model, started by `yarn ollama_up`) also
+  # running on this machine. Like speaches, this does NOT come with the
+  # model preloaded — pull it once after first `docker_up`:
+  #   curl -X POST http://localhost:11435/api/pull -d '{"name":"nomic-embed-text"}'
+  # (cached in the named volume below; matches EMBEDDING_BASE_URL/
+  # LLM_EMBEDDING_MODEL in apps/interview-engine/engine/config.py).
+  embeddings:
+    image: ollama/ollama:latest
+    container_name: interview-embeddings
+    restart: unless-stopped
+    ports:
+      - "11435:11434"
+    volumes:
+      - embeddings_data:/root/.ollama

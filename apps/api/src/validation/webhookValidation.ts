@@ -7,7 +7,7 @@ export const receiveTranscriptSchema = z.object({
       content: z.unknown(),
     }),
   ),
-  // Present whenever apps/interview-agent's own scoring call succeeded —
+  // Present whenever apps/interview-engine's own scoring call succeeded —
   // absent (not merely empty) means it failed, so receiveTranscript can
   // tell "no report yet" apart from "scored, zero competencies".
   report: z.unknown().optional(),

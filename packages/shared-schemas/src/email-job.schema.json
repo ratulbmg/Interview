@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://interview-platform/schemas/email-job.schema.json",
   "title": "EmailJob",
-  "description": "Mirrors packages/email/src/types.ts's EmailJob union by hand — this is the payload shape apps/api enqueues (via packages/email's client.ts) and apps/email-worker's BullMQ worker consumes. Kept here as plain JSON Schema, not a TS import, since a future non-TS consumer (or a schema-validation step at the queue boundary) needs a language-agnostic description of the job shape.",
+  "description": "Mirrors packages/mailer/src/types.ts's EmailJob union by hand — this is the payload shape apps/api enqueues (via packages/mailer's client.ts) and packages/mailer's own BullMQ worker consumes. Kept here as plain JSON Schema, not a TS import, since a future non-TS consumer (or a schema-validation step at the queue boundary) needs a language-agnostic description of the job shape.",
   "oneOf": [
     {
       "type": "object",

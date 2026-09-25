@@ -1,10 +1,12 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { TbCalendarEvent, TbHelpCircle, TbLogout, TbUsers } from "react-icons/tb";
+import { cn } from "@repo/ui";
 import { useLogoutMutation, useMeQuery } from "../redux/api/authApi";
 
 const navItems = [
-  { to: "/candidates", label: "Candidates" },
-  { to: "/sessions", label: "Sessions" },
-  { to: "/questions", label: "Questions" },
+  { to: "/candidates", label: "Candidates", icon: TbUsers },
+  { to: "/sessions", label: "Sessions", icon: TbCalendarEvent },
+  { to: "/questions", label: "Questions", icon: TbHelpCircle },
 ];
 
 export default function Layout() {
@@ -18,32 +20,51 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3">
-        <nav className="flex gap-4">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `text-sm font-medium ${isActive ? "text-blue-600" : "text-gray-600 hover:text-gray-900"}`
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
+    <div className="flex min-h-screen bg-background">
+      <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-card">
+        <div className="px-4 py-4">
+          <span className="text-sm font-semibold text-foreground">
+            Interview Platform
+          </span>
+        </div>
+        <nav className="flex-1 space-y-0.5 px-2">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  )
+                }
+              >
+                <Icon className="size-4" />
+                {item.label}
+              </NavLink>
+            );
+          })}
         </nav>
-        <div className="flex items-center gap-3 text-sm text-gray-600">
-          {me && <span>{me.name}</span>}
+        <div className="border-t border-border p-3">
+          {me && (
+            <p className="mb-2 truncate px-1 text-xs text-muted-foreground">
+              {me.name}
+            </p>
+          )}
           <button
             onClick={handleLogout}
-            className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-100"
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
           >
+            <TbLogout className="size-4" />
             Log out
           </button>
         </div>
-      </header>
-      <main className="mx-auto max-w-5xl p-6">
+      </aside>
+      <main className="flex-1 overflow-y-auto p-8">
         <Outlet />
       </main>
     </div>
