@@ -1,9 +1,42 @@
 # AI Interview Platform
 
-A recruiter adds a candidate, schedules an interview, and an AI voice bot
-conducts the interview and produces a scored report on an admin panel — built
-as a Yarn workspaces + Turborepo monorepo, following the conventions of the
-[Arowdox](/Users/ratul/Documents/Projects/Arowdox) reference project.
+An automated first-round technical interviewer. Recruiters add a candidate
+and schedule a role-specific interview; at the scheduled time, an AI
+conducts a real, spoken conversation with the candidate over a browser —
+asking role-specific questions, probing answers with natural follow-ups,
+and adapting question difficulty to what the candidate's CV suggests about
+their seniority. When it's done, the recruiter gets a scored report with
+quoted evidence for every competency assessed, with no interviewer time
+spent on a screening call that didn't need one.
+
+## How it works
+
+1. **Add a candidate** — email, name, and a CV. The CV is parsed in the
+   background the moment it's uploaded, so it's ready before any interview
+   is even scheduled.
+2. **Schedule the interview** — pick a role and a time. Each role has a
+   fixed interview blueprint (an ordered list of competencies to assess);
+   the actual question text is selected later, per candidate.
+3. **Send the invite** — one click. The candidate is emailed automatically
+   (an initial invite, a follow-up, and the join link closer to the day),
+   and the interview's questions are prepared a couple of minutes ahead of
+   time — chosen from the question bank for relevance to that candidate's
+   CV and seniority, so no two candidates for the same role necessarily
+   hear the exact same phrasing.
+4. **The interview happens** — the candidate opens a link, no download or
+   account required, and has a live spoken conversation with the AI
+   interviewer. A candidate who disconnects mid-interview can resume
+   within a 30-minute window without losing progress; one who never shows
+   up is automatically marked so, with no recruiter follow-up needed.
+5. **The report lands automatically** — once the interview ends (by the
+   candidate's own request or a disconnect), the transcript is scored
+   per competency, each score backed by a quoted excerpt from what the
+   candidate actually said, and every recruiter is notified by email with
+   a link to the full report.
+
+For the full technical walkthrough — every API call, database write, and
+decision the system makes along the way — see
+[HOW_IT_WORKS.md](HOW_IT_WORKS.md).
 
 ## What's in here
 
@@ -28,23 +61,23 @@ packages/
   prettier-config   Shared Prettier config
 ```
 
-## Build plan
+## Roadmap
 
-This repo is built one phase at a time — each phase produces something that
-runs on its own before the next one starts:
+Built one phase at a time — each phase produces something that runs on its
+own before the next one starts:
 
-| Phase | Goal                                                          |
-| ----- | ------------------------------------------------------------- |
-| 0     | Repo scaffold — this state                                    |
-| 1     | Data layer: Candidate, Role, Question, InterviewSession, User |
-| 2     | Interview logic, text-only (Python CLI, no voice)             |
-| 3     | Admin panel + API CRUD                                        |
-| 4     | Mailer package (invite, follow-up, meeting-link)              |
-| 5     | Scheduler — BullMQ delayed jobs off `scheduledAt`             |
-| 6     | Voice, browser-based (Pipecat)                                |
-| 7     | Meeting-bot swap (Teams)                                      |
-| 8     | Reports on the admin panel                                    |
-| 9     | Hardening                                                     |
+| Phase | Goal                                                          | Status      |
+| ----- | -------------------------------------------------------------- | ----------- |
+| 0     | Repo scaffold                                                 | Done        |
+| 1     | Data layer: Candidate, Role, Question, InterviewSession, User | Done        |
+| 2     | Interview logic, text-only (Python CLI, no voice)             | Done        |
+| 3     | Admin panel + API CRUD                                        | Done        |
+| 4     | Mailer package (invite, follow-up, meeting-link)              | Done        |
+| 5     | Scheduler — BullMQ delayed jobs off `scheduledAt`             | Done        |
+| 6     | Voice, browser-based (Pipecat)                                | Done        |
+| 7     | Meeting-bot swap (Teams)                                      | Not started |
+| 8     | Reports on the admin panel                                    | Done        |
+| 9     | Hardening for production (auth, deployment, monitoring, load) | In progress |
 
 ## Getting started
 
@@ -77,23 +110,15 @@ yarn ollama_down
 ## Stack
 
 - **Frontend:** Vite + React, Redux Toolkit Query
-- **Backend:** Express, Prisma, PostgreSQL (pgvector), Redis + BullMQ
-- **Voice agent:** Python + Pipecat (the only non-TypeScript app; Python
-  3.12 specifically). Chat (`qwen3:30b-a3b`) runs through a native Ollama
-  install (`yarn ollama_up`) for GPU/Metal access; point `LLM_BASE_URL` at
-  OpenAI or another OpenAI-compatible endpoint instead if you'd rather not
-  run it locally. Embeddings (`nomic-embed-text`) run in a second, dedicated
-  Ollama instance in Docker instead (`:11435`, see `docker-compose.yml`) —
-  small enough that CPU-only is fine there. STT/TTS are also Docker
-  containers (speaches for transcription, kokoro-fastapi for speech), all
-  talking OpenAI-compatible APIs the same way the chat model does.
-- **Tooling:** Turborepo, Yarn workspaces, ESLint (flat config), Prettier,
-  Husky + lint-staged
-- **Infra (local dev):** Postgres on Neon (cloud, no local install); the
-  chat model native (`yarn ollama_up`/`yarn ollama_down`); Redis, Mailpit,
-  STT/TTS, and the embeddings Ollama all in Docker (`yarn docker_up`/
-  `yarn docker_down`, see `docker-compose.yml`); `yarn dev` then starts
-  only the native app processes (api, admin, mailer, agent)
-  and expects the two `_up` commands to have already run. GitHub Actions CI
-  for lint/format/build only. Deployment/production infra isn't built yet —
-  this repo is local-dev-only for now, by design (see Build plan below).
+- **Backend:** Express, Prisma, PostgreSQL with pgvector, Redis + BullMQ
+- **Voice AI:** Python + Pipecat, talking to an LLM, speech-to-text, and
+  text-to-speech over OpenAI-compatible APIs — swappable for any provider
+  that speaks that protocol; runs against a local Ollama model by default
+  for zero-cost local development
+- **Email:** React Email templates rendered and sent by a dedicated worker
+- **Tooling:** Turborepo, Yarn workspaces, ESLint, Prettier, Husky + lint-staged, GitHub Actions CI
+
+This repo currently targets local development only — see the Roadmap above
+for what's still ahead of a production deployment. Implementation detail
+that would clutter this section (exact ports, container images, model
+names) is in [HOW_IT_WORKS.md](HOW_IT_WORKS.md) instead.
