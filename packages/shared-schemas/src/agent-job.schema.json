@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://interview-platform/schemas/agent-job.schema.json",
+  "title": "AgentQueueJob",
+  "description": "Mirrors apps/api/src/lib/agentQueue.ts's AgentQueueJob union by hand — the job payloads apps/api enqueues on the 'agent-jobs' BullMQ queue and apps/engine's Python consumer (agent/voice/consumer.py) picks up, distinguished by BullMQ's own job name ('agent-start' or 'cv-parse'). Session-lifecycle timing decisions (no-show, interview-timeout-finalize) moved to apps/api's own 'orchestrator-jobs' queue — see orchestrator-job.schema.json — since apps/api is now the sole decision-maker for session state; apps/engine only prepares interview content (CV parsing, question selection) on this queue now.",
+  "oneOf": [
+    {
+      "title": "AgentStartJob",
+      "description": "Enqueued for scheduledAt minus 2 minutes — the agent prepares the room. The candidate's CV is normally already parsed by a prior CvParseJob (Candidate.cvParsedJson); everything else the agent needs (role blueprint, question bank) it looks up from Postgres directly by these ids — see apps/engine/agent/db.py.",
+      "type": "object",
+      "required": [
+        "sessionId",
+        "candidateId",
+        "roleId",
+        "meetingUrl",
+        "scheduledAt"
+      ],
+      "properties": {
+        "sessionId": { "type": "integer" },
+        "candidateId": { "type": "integer" },
+        "roleId": { "type": "integer" },
+        "meetingUrl": { "type": "string", "format": "uri" },
+        "scheduledAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "title": "CvParseJob",
+      "description": "Enqueued the moment a candidate is added, not tied to any interview — parses the CV into structured JSON (skills, experience, seniority) and saves it to Candidate.cvParsedJson, ahead of any interview being scheduled. Keeps the slow LLM call out of AgentStartJob's 2-minute lead time.",
+      "type": "object",
+      "required": ["candidateId"],
+      "properties": {
+        "candidateId": { "type": "integer" }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

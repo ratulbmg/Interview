@@ -4,7 +4,7 @@
  *
  * This package has zero runtime dependencies on purpose: it must be safe to
  * import from a Node backend (apps/api, packages/mailer) and from a
- * browser bundle (apps/dashboard) alike, so nothing here can pull in
+ * browser bundle (apps/admin) alike, so nothing here can pull in
  * Prisma, `pg`, or any other Node-only package.
  *
  * These same enums are also declared as native `enum` blocks in

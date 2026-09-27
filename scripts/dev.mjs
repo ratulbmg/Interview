@@ -5,11 +5,11 @@
 // started by their own explicit command instead — `yarn ollama_up` and
 // `yarn docker_up`, run once before this. This script only checks they're
 // already reachable (failing fast with which command to run if not), then
-// starts the Python interview-engine (not a yarn workspace member, so it's
+// starts the Python voice agent (not a yarn workspace member, so it's
 // spawned here instead of needing its own terminal) alongside the
 // TypeScript apps via turbo.
 //
-// Ctrl+C stops exactly what this script itself started (the engine + turbo)
+// Ctrl+C stops exactly what this script itself started (the agent + turbo)
 // — it never touches Ollama or the Docker appliances, since it never
 // started them.
 
@@ -20,7 +20,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const ENGINE_DIR = path.join(ROOT, "apps/interview-engine");
+const AGENT_DIR = path.join(ROOT, "apps/engine");
 
 // Only ever holds things this script actually spawned — a service that
 // was already running is never added here, so shutdown() never touches it.
@@ -50,6 +50,7 @@ function spawnManaged(name, command, args, opts = {}) {
     detached: true, // own process group, so a Ctrl+C in this terminal
     stdio: opts.inherit ? "inherit" : ["ignore", "pipe", "pipe"], // doesn't also hit these directly — shutdown() decides when
     cwd: opts.cwd ?? ROOT,
+    env: { ...process.env, ...opts.env },
   });
   if (!opts.inherit) pipeOutput(name, proc);
   proc.on("exit", (code, signal) => {
@@ -122,15 +123,20 @@ async function ensureMailpit() {
   process.exit(1);
 }
 
-function startEngine() {
-  log("engine", "starting interview-engine voice server...");
-  spawnManaged("engine", path.join(ENGINE_DIR, ".venv/bin/python"), ["-m", "engine.voice.server"], {
-    cwd: ENGINE_DIR,
+function startAgent() {
+  log("agent", "starting voice agent server...");
+  spawnManaged("agent", path.join(AGENT_DIR, ".venv/bin/python"), ["-m", "agent.voice.server"], {
+    cwd: AGENT_DIR,
+    // Defensive only: agent logging already goes through loguru's stderr
+    // sink, which isn't subject to stdout's block-buffering-on-a-pipe
+    // behavior — but this guards against anything else (a stray print(),
+    // uvicorn's own access log) writing to stdout and getting buffered.
+    env: { PYTHONUNBUFFERED: "1" },
   });
 }
 
 function startTurbo() {
-  log("dev", "starting api + dashboard + mailer (turbo run dev)...");
+  log("dev", "starting api + admin + mailer (turbo run dev)...");
   // Inherits stdio — turbo already prefixes/colors each workspace's output.
   spawnManaged("turbo", "yarn", ["turbo", "run", "dev"], { inherit: true });
 }
@@ -172,7 +178,7 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
   await ensureOllama();
   await ensureRedis();
   await ensureMailpit();
-  startEngine();
+  startAgent();
   startTurbo();
 
   log("dev", "all services starting — Ctrl+C to stop everything this session owns.");

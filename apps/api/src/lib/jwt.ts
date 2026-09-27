@@ -32,7 +32,7 @@ export const getJwtSecret = (): string => {
   return secret;
 };
 
-/** Name of the httpOnly cookie the dashboard authenticates with. */
+/** Name of the httpOnly cookie the admin app authenticates with. */
 export const AUTH_COOKIE_NAME = "token";
 
 /** Default token lifetime. Kept in one place so the cookie maxAge can match it. */
@@ -66,7 +66,7 @@ export const verifyToken = async (token: string): Promise<JWTPayload> => {
 
 /**
  * httpOnly: JavaScript can't read the token, so an XSS bug can't exfiltrate
- * it. sameSite/secure relax in dev so the Vite dashboard's http://localhost
+ * it. sameSite/secure relax in dev so the Vite admin app's http://localhost
  * origin works without HTTPS.
  */
 export const authCookieOptions = (): CookieOptions => {

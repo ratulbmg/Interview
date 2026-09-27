@@ -6,7 +6,7 @@
  *
  * This exercises the API/DB/Redis pipeline at that scale — not 30 live
  * spoken interviews, which need a browser, a microphone, and a real
- * OPENAI_API_KEY for each one; see apps/interview-engine's own Phase 2/6
+ * OPENAI_API_KEY for each one; see apps/engine's own Phase 2/6
  * verification for what's been checked of that half.
  *
  * Usage: API_URL=http://localhost:3001 tsx scripts/batch-test-30.ts
@@ -17,7 +17,7 @@ import { resolve } from "path";
 
 const API_URL = process.env.API_URL ?? "http://localhost:3001";
 const BATCH_SIZE = 30;
-const CV_PATH = resolve(__dirname, "../../interview-engine/sample.pdf");
+const CV_PATH = resolve(__dirname, "../../engine/sample.pdf");
 
 interface Result {
   index: number;

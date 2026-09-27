@@ -2540,6 +2540,36 @@ __metadata:
   languageName: node
   linkType: hard
 
+"admin@workspace:apps/admin":
+  version: 0.0.0-use.local
+  resolution: "admin@workspace:apps/admin"
+  dependencies:
+    "@pipecat-ai/client-js": "npm:^1.13.1"
+    "@pipecat-ai/small-webrtc-transport": "npm:^1.10.8"
+    "@reduxjs/toolkit": "npm:^2.12.0"
+    "@repo/enums": "npm:*"
+    "@repo/eslint-config": "npm:*"
+    "@repo/ui": "npm:*"
+    "@tailwindcss/vite": "npm:^4.3.3"
+    "@types/node": "npm:^24.13.3"
+    "@types/react": "npm:19.2.2"
+    "@types/react-dom": "npm:19.2.2"
+    "@vitejs/plugin-react": "npm:^6.0.5"
+    eslint: "npm:^10.8.0"
+    eslint-plugin-react-hooks: "npm:^7.1.1"
+    eslint-plugin-react-refresh: "npm:^0.5.3"
+    globals: "npm:^17.7.0"
+    react: "npm:^19.2.8"
+    react-dom: "npm:^19.2.8"
+    react-icons: "npm:^5.5.0"
+    react-redux: "npm:^9.3.0"
+    react-router-dom: "npm:^7.18.2"
+    tailwindcss: "npm:^4.3.3"
+    typescript: "npm:~6.0.2"
+    vite: "npm:^8.2.0"
+  languageName: unknown
+  linkType: soft
+
 "ai-interview-platform@workspace:.":
   version: 0.0.0-use.local
   resolution: "ai-interview-platform@workspace:."
@@ -3168,36 +3198,6 @@ __metadata:
   checksum: 10c0/a984f77e1aaeaa182679b46fbf57eceb6ebdb5f67d7578d6f68ef933f8eeb63737c0949991618a8d29472dbf43736c7d7f17c452b2770f8c1271191cba724ca1
   languageName: node
   linkType: hard
-
-"dashboard@workspace:apps/dashboard":
-  version: 0.0.0-use.local
-  resolution: "dashboard@workspace:apps/dashboard"
-  dependencies:
-    "@pipecat-ai/client-js": "npm:^1.13.1"
-    "@pipecat-ai/small-webrtc-transport": "npm:^1.10.8"
-    "@reduxjs/toolkit": "npm:^2.12.0"
-    "@repo/enums": "npm:*"
-    "@repo/eslint-config": "npm:*"
-    "@repo/ui": "npm:*"
-    "@tailwindcss/vite": "npm:^4.3.3"
-    "@types/node": "npm:^24.13.3"
-    "@types/react": "npm:19.2.2"
-    "@types/react-dom": "npm:19.2.2"
-    "@vitejs/plugin-react": "npm:^6.0.5"
-    eslint: "npm:^10.8.0"
-    eslint-plugin-react-hooks: "npm:^7.1.1"
-    eslint-plugin-react-refresh: "npm:^0.5.3"
-    globals: "npm:^17.7.0"
-    react: "npm:^19.2.8"
-    react-dom: "npm:^19.2.8"
-    react-icons: "npm:^5.5.0"
-    react-redux: "npm:^9.3.0"
-    react-router-dom: "npm:^7.18.2"
-    tailwindcss: "npm:^4.3.3"
-    typescript: "npm:~6.0.2"
-    vite: "npm:^8.2.0"
-  languageName: unknown
-  linkType: soft
 
 "debug@npm:4.4.3, debug@npm:^4, debug@npm:^4.1.0, debug@npm:^4.3.1, debug@npm:^4.3.2, debug@npm:^4.4.0, debug@npm:^4.4.3":
   version: 4.4.3

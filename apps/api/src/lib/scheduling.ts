@@ -2,7 +2,7 @@
  * 0 (BullMQ delays can't be negative, and the domain rule for the
  * follow-up email is explicitly "send immediately if under 2 days out";
  * the same clamp is the only sane behavior for the meeting-link and
- * engine-start jobs too). */
+ * agent-start jobs too). */
 export function delayUntil(scheduledAt: Date, offsetMs: number): number {
   const target = scheduledAt.getTime() - offsetMs;
   return Math.max(0, target - Date.now());

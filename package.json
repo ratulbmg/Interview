@@ -11,7 +11,7 @@
     "lint:fix": "turbo run lint -- --fix",
     "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
     "format:fix": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "engine:build": "bash scripts/setup-engine-venv.sh",
+    "agent:build": "bash scripts/setup-agent-venv.sh",
     "ollama_up": "node scripts/ollama-up.mjs",
     "ollama_down": "node scripts/ollama-down.mjs",
     "docker_up": "docker compose up -d",

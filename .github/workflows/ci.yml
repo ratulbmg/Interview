@@ -32,7 +32,7 @@ jobs:
       - name: Format check
         run: yarn format:check
 
-      # Also serves as the type-check step — apps/dashboard's and
+      # Also serves as the type-check step — apps/admin's and
       # apps/api's own `build` scripts already run `tsc`.
       - name: Build
         run: yarn build

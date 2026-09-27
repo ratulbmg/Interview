@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://interview-platform/schemas/orchestrator-job.schema.json",
+  "title": "OrchestratorQueueJob",
+  "description": "Mirrors apps/api/src/lib/orchestratorQueue.ts's OrchestratorQueueJob union by hand — the job payloads apps/api enqueues on its own 'orchestrator-jobs' BullMQ queue AND consumes itself (see orchestratorWorker.ts), distinguished by BullMQ's own job name ('noshow-check' or 'interview-timeout-finalize'). These are pure Postgres-status-timing decisions apps/api makes about its own InterviewSession rows — apps/engine (Python) is not involved in this queue at all, unlike agent-job.schema.json's queue.",
+  "oneOf": [
+    {
+      "title": "NoShowCheckJob",
+      "description": "Enqueued for scheduledAt plus 15 minutes — marks the session NO_SHOW if it never actually started (still SCHEDULED or INVITE_SENT at that point). A no-op if the session already started or resolved some other way.",
+      "type": "object",
+      "required": ["sessionId"],
+      "properties": {
+        "sessionId": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "title": "InterviewTimeoutFinalizeJob",
+      "description": "Enqueued for scheduledAt plus 30 minutes (must stay in sync with JOIN_WINDOW_MINUTES in apps/engine/agent/voice/server.py). A safety net for a session still IN_PROGRESS at that point (the candidate disconnected without deliberately ending the call, and never came back within the resume window): apps/api scores whatever was captured in Session.checkpointJson (by calling the agent's own /score endpoint) and finalizes it, rather than leaving it stuck IN_PROGRESS forever. A no-op if the session already reached a terminal state some other way.",
+      "type": "object",
+      "required": ["sessionId"],
+      "properties": {
+        "sessionId": { "type": "integer" }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

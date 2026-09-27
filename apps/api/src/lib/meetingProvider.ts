@@ -23,10 +23,10 @@ class BrowserRoomMeetingProvider implements MeetingProvider {
     _session: MeetingSessionInfo,
   ): Promise<{ meetingUrl: string }> {
     const roomToken = randomUUID();
-    const dashboardUrl =
-      process.env.DASHBOARD_PUBLIC_URL ??
-      `http://localhost:${process.env.DASHBOARD_PORT ?? 3002}`;
-    return { meetingUrl: `${dashboardUrl}/room/${roomToken}` };
+    const adminUrl =
+      process.env.ADMIN_PUBLIC_URL ??
+      `http://localhost:${process.env.ADMIN_PORT ?? 3002}`;
+    return { meetingUrl: `${adminUrl}/room/${roomToken}` };
   }
 }
 

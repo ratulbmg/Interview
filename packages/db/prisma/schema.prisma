@@ -120,6 +120,12 @@ model InterviewSession {
   meetingUrl     String?
   transcript     Json?
   reportJson     Json?
+  /// A resumable snapshot (transcript-so-far + selected questions) saved
+  /// whenever the candidate disconnects without deliberately ending the
+  /// call — lets apps/interview-engine pick the interview back up on
+  /// reconnect, even across its own restart. Cleared once the interview is
+  /// actually finalized (see transcript/reportJson above).
+  checkpointJson Json?
   /// Set the moment the candidate confirms the recording/AI-evaluation
   /// notice at the start of the call (see apps/interview-agent's
   /// agent/voice/server.py, Phase 8) — null means either the interview

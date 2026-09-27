@@ -4,7 +4,7 @@ import { EmailShell, emailTheme } from "./shared";
 import { ReportReadyEmailData } from "../types";
 
 /** Sent to the recruiter, not the candidate — the recruiter does nothing
- * to trigger this; it's enqueued automatically once apps/interview-engine
+ * to trigger this; it's enqueued automatically once apps/engine
  * posts a finished interview's transcript and score report (see
  * apps/api's sessionService.receiveTranscript, Phase 7). */
 export function ReportReadyEmail({

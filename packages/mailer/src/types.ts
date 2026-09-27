@@ -27,7 +27,7 @@ export interface ReportReadyEmailData {
   candidateName: string;
   roleName: string;
   sessionId: number;
-  /** Absolute URL to the session's dashboard page. */
+  /** Absolute URL to the session's admin page. */
   sessionUrl: string;
 }
 

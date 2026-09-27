@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import cors, { CorsOptions } from "cors";
 
 const allowedOrigins = [
-  `http://localhost:${process.env.DASHBOARD_PORT ?? 3002}`,
+  `http://localhost:${process.env.ADMIN_PORT ?? 3002}`,
 ];
 
 const corsOptions: CorsOptions = {
@@ -48,7 +48,7 @@ const devCorsOptions: CorsOptions = {
  * Chrome's Private Network Access checks (rolled out progressively since
  * 2023) send an extra `Access-Control-Request-Private-Network: true`
  * preflight header whenever a page fetches a "more private" address than
- * its own origin — which localhost:3002 (the dashboard) fetching
+ * its own origin — which localhost:3002 (the admin app) fetching
  * localhost:3001 (this API) can trigger depending on the browser's exact
  * network classification of "localhost". Without an explicit
  * `Access-Control-Allow-Private-Network: true` reply, Chrome silently

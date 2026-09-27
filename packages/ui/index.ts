@@ -1,7 +1,7 @@
 /**
- * Shared React components, consumed via @repo/ui by apps/dashboard. The
+ * Shared React components, consumed via @repo/ui by apps/admin. The
  * design system (colors, radius scale) mirrors the Arowdox reference
- * project's — see apps/dashboard/src/styles/globals.css's theme tokens.
+ * project's — see apps/admin/src/styles/globals.css's theme tokens.
  */
 
 export { cn } from "./utils/cn";

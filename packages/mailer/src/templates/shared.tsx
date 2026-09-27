@@ -12,12 +12,12 @@ import {
 } from "@react-email/components";
 import { ReactNode } from "react";
 
-/** Same neutral design language as apps/dashboard (see its globals.css) —
+/** Same neutral design language as apps/admin (see its globals.css) —
  * translated to hex, since email clients don't reliably support CSS
  * variables or oklch(). Kept as one object so every template pulls from
  * the same palette instead of re-guessing colors per file. */
 export const emailTheme = {
-  background: "#f5f5f5", // dashboard's --secondary
+  background: "#f5f5f5", // admin's --secondary
   card: "#ffffff", // --card
   foreground: "#171717", // --foreground
   mutedForeground: "#737373", // --muted-foreground

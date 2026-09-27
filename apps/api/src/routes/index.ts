@@ -5,7 +5,7 @@ import candidateRouter from "./candidateRoute";
 import sessionRouter from "./sessionRoute";
 import roleRouter from "./roleRoute";
 import questionRouter from "./questionRoute";
-import webhookRouter from "./webhookRoute";
+import agentRouter from "./agentRoute";
 
 const router = Router();
 
@@ -18,7 +18,7 @@ router.use(candidateRouter);
 router.use(sessionRouter);
 router.use(roleRouter);
 router.use(questionRouter);
-router.use(webhookRouter);
+router.use(agentRouter);
 
 router.use(() => {
   throw new apiError("Route not found", 404);

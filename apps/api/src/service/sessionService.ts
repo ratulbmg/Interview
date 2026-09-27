@@ -2,16 +2,103 @@ import { InterviewSession, Candidate, Role, Prisma } from "@repo/db/client";
 import { enqueueEmail } from "@repo/mailer";
 import { InterviewSessionStatus } from "../enum";
 import { apiError } from "../utils/apiError";
-import { ScheduleSessionRequest } from "../model/sessionModel";
+import {
+  ScheduleSessionRequest,
+  TranscriptTurn,
+  SelectedQuestionDto,
+} from "../model/sessionModel";
 import { repositoryWrapper } from "../repository/repositoryWrapper";
 import { meetingProvider } from "../lib/meetingProvider";
-import { engineQueue, EngineStartJob, NoShowCheckJob } from "../lib/engineQueue";
+import { agentQueue, AgentStartJob } from "../lib/agentQueue";
+import {
+  orchestratorQueue,
+  NoShowCheckJob,
+  InterviewTimeoutFinalizeJob,
+} from "../lib/orchestratorQueue";
+import { scoreInterview } from "../lib/agentClient";
 import { delayUntil, MINUTES, DAYS } from "../lib/scheduling";
 
 type SessionWithRelations = InterviewSession & {
   candidate: Candidate;
   role: Role;
 };
+
+// Re-exported so controllers/etc. can import these DTOs from the service
+// alongside JoinInstruction, without needing to know they actually live in
+// model/sessionModel.ts (kept there to avoid a circular import with
+// lib/agentClient.ts, which also needs them).
+export type { TranscriptTurn, SelectedQuestionDto };
+
+/**
+ * The single decision apps/api hands back to apps/engine for
+ * "what do I do for this room token" (POST /agent/rooms/join) — the
+ * agent is a pure executor of whichever variant comes back, including
+ * speaking the exact `message` text verbatim.
+ */
+export type JoinInstruction =
+  | { action: "speak_and_end"; message: string }
+  | {
+      action: "start";
+      sessionId: number;
+      candidateName: string;
+      roleName: string;
+      selectedQuestions: SelectedQuestionDto[];
+    }
+  | {
+      action: "resume";
+      sessionId: number;
+      candidateName: string;
+      roleName: string;
+      selectedQuestions: SelectedQuestionDto[];
+      priorTranscript: TranscriptTurn[];
+    };
+
+// Candidate-facing copy — verbatim strings the agent speaks when it gets
+// back a "speak_and_end" instruction. Keep in sync with
+// packages/mailer's MeetingLinkEmail.tsx, which tells the candidate the
+// same join-window number.
+export const MSG_NOT_READY =
+  "Your interview hasn't started yet. Please come back at your scheduled time — you'll be able to join a couple of minutes early.";
+export const MSG_EXPIRED =
+  "This interview link has expired. Please reach out to your recruiter to reschedule.";
+export const MSG_ALREADY_COMPLETED =
+  "Your interview has already been completed. Please wait for further communication from your recruiter.";
+
+/** How long after scheduledAt a candidate can still start an interview for
+ * the first time, or resume one they disconnected from without ending it
+ * deliberately. Must stay in sync with JOIN_WINDOW_MINUTES in
+ * apps/engine/agent/voice/server.py and with
+ * scheduleInterviewTimeoutFinalize's offset below. */
+const JOIN_WINDOW_MINUTES = 30;
+
+type CheckpointData = {
+  transcript: TranscriptTurn[];
+  selectedQuestions: SelectedQuestionDto[];
+};
+
+/** Session.checkpointJson is a loosely-typed Prisma Json? column written
+ * by this same service (saveSelectedQuestions, reportDisconnect) — this
+ * just narrows it back defensively rather than trusting the DB blindly. */
+function readCheckpoint(
+  checkpointJson: Prisma.JsonValue | null,
+): CheckpointData | null {
+  if (
+    checkpointJson === null ||
+    typeof checkpointJson !== "object" ||
+    Array.isArray(checkpointJson)
+  ) {
+    return null;
+  }
+  const obj = checkpointJson as Record<string, unknown>;
+  return {
+    transcript: Array.isArray(obj.transcript)
+      ? (obj.transcript as TranscriptTurn[])
+      : [],
+    selectedQuestions: Array.isArray(obj.selectedQuestions)
+      ? (obj.selectedQuestions as SelectedQuestionDto[])
+      : [],
+  };
+}
 
 class SessionService {
   async listSessions(): Promise<InterviewSession[]> {
@@ -66,7 +153,7 @@ class SessionService {
   /**
    * Pressing "Send Invite" is the recruiter's last required action.
    * Everything from here runs on its own: a meeting URL is minted, the
-   * session moves to INVITE_SENT, and three emails plus one engine-start
+   * session moves to INVITE_SENT, and three emails plus one agent-start
    * job are scheduled as delayed jobs off scheduledAt — not three separate
    * recruiter actions.
    */
@@ -93,8 +180,9 @@ class SessionService {
     });
 
     await this.scheduleEmails(session, meetingUrl);
-    await this.scheduleEngineStart(session, meetingUrl);
+    await this.scheduleAgentStart(session, meetingUrl);
     await this.scheduleNoShowCheck(session);
+    await this.scheduleInterviewTimeoutFinalize(session);
 
     return updated;
   }
@@ -134,47 +222,252 @@ class SessionService {
   }
 
   /**
-   * apps/interview-engine posts here once the candidate hangs up or the
-   * interview otherwise ends (see engine/voice/webhook_client.py), with the
-   * transcript and — since the engine already scored the interview itself
-   * right after it ended — the report. Stores both, marks the session
-   * COMPLETED, and enqueues a report-ready email to every recruiter; none
-   * of that needs a recruiter action to trigger.
+   * apps/api is "the boss" for every session-lifecycle decision — this is
+   * the one apps/engine's bot() function used to make itself by
+   * querying Postgres directly (see the old apps/engine/agent/
+   * voice/server.py and agent/db.py). Now the agent calls
+   * POST /agent/rooms/join with just the room token and acts on whatever
+   * comes back, including speaking the exact message text verbatim for
+   * every "speak_and_end" outcome.
    */
-  async receiveTranscript(
-    id: number,
-    transcript: Prisma.InputJsonValue,
-    report?: Prisma.InputJsonValue,
-  ): Promise<InterviewSession> {
+  async getJoinInstruction(roomToken: string): Promise<JoinInstruction> {
+    const session =
+      (await repositoryWrapper.sessionRepository.findByRoomToken(
+        roomToken,
+      )) as SessionWithRelations | null;
+
+    if (!session) {
+      return { action: "speak_and_end", message: MSG_NOT_READY };
+    }
+
+    if (session.status === InterviewSessionStatus.COMPLETED) {
+      return { action: "speak_and_end", message: MSG_ALREADY_COMPLETED };
+    }
+
+    if (
+      session.status === InterviewSessionStatus.NO_SHOW ||
+      session.status === InterviewSessionStatus.CANCELLED
+    ) {
+      return { action: "speak_and_end", message: MSG_EXPIRED };
+    }
+
+    const candidateName = session.candidate.name ?? session.candidate.email;
+    const roleName = session.role.name;
+    const deadline = new Date(
+      session.scheduledAt.getTime() + JOIN_WINDOW_MINUTES * MINUTES,
+    );
+    const now = new Date();
+
+    if (session.status === InterviewSessionStatus.IN_PROGRESS) {
+      const checkpoint = readCheckpoint(session.checkpointJson) ?? {
+        transcript: [],
+        selectedQuestions: [],
+      };
+
+      if (now <= deadline) {
+        return {
+          action: "resume",
+          sessionId: session.id,
+          candidateName,
+          roleName,
+          selectedQuestions: checkpoint.selectedQuestions,
+          priorTranscript: checkpoint.transcript,
+        };
+      }
+
+      // Started, then disconnected without ending deliberately, and now
+      // past the resume deadline. Tell the candidate right away — scoring
+      // can take a while with a local LLM, nobody should sit on
+      // "Connecting…" waiting for it — and finalize in the background with
+      // whatever was captured.
+      this.scoreAndFinalize(
+        session.id,
+        checkpoint.transcript,
+        checkpoint.selectedQuestions,
+        roleName,
+      ).catch((error) => {
+        console.error(
+          `Failed to finalize abandoned session ${session.id}:`,
+          error,
+        );
+      });
+      return { action: "speak_and_end", message: MSG_ALREADY_COMPLETED };
+    }
+
+    // SCHEDULED or INVITE_SENT.
+    if (now > deadline) {
+      // Never started and now past the join window — a no-show.
+      await repositoryWrapper.sessionRepository.update(session.id, {
+        status: InterviewSessionStatus.NO_SHOW,
+      });
+      return { action: "speak_and_end", message: MSG_EXPIRED };
+    }
+
+    const checkpoint = readCheckpoint(session.checkpointJson);
+    if (!checkpoint) {
+      // agent-start hasn't fired yet (e.g. candidate clicked the link a
+      // day early) — no questions selected yet, nothing to start.
+      return { action: "speak_and_end", message: MSG_NOT_READY };
+    }
+
+    await repositoryWrapper.sessionRepository.update(session.id, {
+      status: InterviewSessionStatus.IN_PROGRESS,
+    });
+
+    return {
+      action: "start",
+      sessionId: session.id,
+      candidateName,
+      roleName,
+      selectedQuestions: checkpoint.selectedQuestions,
+    };
+  }
+
+  /** Called once apps/engine has selected the interview's
+   * questions (agent-start job) — the fresh-start half of
+   * getJoinInstruction's SCHEDULED/INVITE_SENT branch is gated on this
+   * having happened. */
+  async saveSelectedQuestions(
+    sessionId: number,
+    selectedQuestions: SelectedQuestionDto[],
+  ): Promise<void> {
+    const existing = await repositoryWrapper.sessionRepository.findById(
+      sessionId,
+    );
+    if (!existing) {
+      throw new apiError("Session not found", 404);
+    }
+    const checkpoint: CheckpointData = { transcript: [], selectedQuestions };
+    await repositoryWrapper.sessionRepository.update(sessionId, {
+      checkpointJson: checkpoint as unknown as Prisma.InputJsonValue,
+    });
+  }
+
+  /** Called once the candidate has heard and responded to the
+   * recording/AI-evaluation notice at the start of the call — mirrors the
+   * old apps/engine/agent/db.py's log_consent. */
+  async recordConsent(sessionId: number): Promise<void> {
+    const existing = await repositoryWrapper.sessionRepository.findById(
+      sessionId,
+    );
+    if (!existing) {
+      throw new apiError("Session not found", 404);
+    }
+    await repositoryWrapper.sessionRepository.update(sessionId, {
+      consentGivenAt: new Date(),
+    });
+  }
+
+  /**
+   * Called on every candidate disconnect. A deliberate end (candidate
+   * clicked "End Interview") is scored and finalized right away; anything
+   * else just checkpoints the transcript-so-far so the candidate can
+   * resume later (status stays whatever it already was — still
+   * IN_PROGRESS) — interview-timeout-finalize catches it if they never
+   * come back at all.
+   */
+  async reportDisconnect(
+    sessionId: number,
+    transcript: TranscriptTurn[],
+    selectedQuestions: SelectedQuestionDto[],
+    endedDeliberately: boolean,
+  ): Promise<void> {
     const session =
       (await repositoryWrapper.sessionRepository.findByIdWithRelations(
-        id,
+        sessionId,
       )) as SessionWithRelations | null;
     if (!session) {
       throw new apiError("Session not found", 404);
     }
 
-    const updated = await repositoryWrapper.sessionRepository.update(id, {
+    if (endedDeliberately) {
+      await this.scoreAndFinalize(
+        sessionId,
+        transcript,
+        selectedQuestions,
+        session.role.name,
+      );
+      return;
+    }
+
+    const checkpoint: CheckpointData = { transcript, selectedQuestions };
+    await repositoryWrapper.sessionRepository.update(sessionId, {
+      checkpointJson: checkpoint as unknown as Prisma.InputJsonValue,
+    });
+  }
+
+  /** Calls apps/engine's /score endpoint (the one direction the
+   * boss/executor relationship runs backwards — see agentClient.ts) and
+   * finalizes with whatever comes back. Scoring failures are logged but
+   * don't block finalizing the session with a null report — an interview
+   * that fails to score shouldn't be stuck COMPLETED-less forever. */
+  private async scoreAndFinalize(
+    sessionId: number,
+    transcript: TranscriptTurn[],
+    selectedQuestions: SelectedQuestionDto[],
+    roleName: string,
+  ): Promise<void> {
+    let report: unknown;
+    try {
+      const result = await scoreInterview(
+        transcript,
+        selectedQuestions,
+        roleName,
+      );
+      report = result.report;
+    } catch (error) {
+      console.error(`Failed to score session ${sessionId}:`, error);
+    }
+    await this.finalizeSession(
+      sessionId,
+      transcript as unknown as Prisma.InputJsonValue,
+      report as Prisma.InputJsonValue | undefined,
+    );
+  }
+
+  /**
+   * Stores the final transcript + score report, marks the session
+   * COMPLETED, clears checkpointJson (nothing left to resume), and — if a
+   * report came back — enqueues the recruiter's report-ready email. The
+   * only two callers are scoreAndFinalize (above) and
+   * orchestratorWorker.ts's interview-timeout-finalize handler; this used
+   * to be reachable directly via a webhook apps/engine posted to
+   * (receiveTranscript) before apps/api became the one deciding when a
+   * session is done.
+   */
+  async finalizeSession(
+    sessionId: number,
+    transcript: Prisma.InputJsonValue,
+    report?: Prisma.InputJsonValue,
+  ): Promise<void> {
+    const session =
+      (await repositoryWrapper.sessionRepository.findByIdWithRelations(
+        sessionId,
+      )) as SessionWithRelations | null;
+    if (!session) {
+      throw new apiError("Session not found", 404);
+    }
+
+    await repositoryWrapper.sessionRepository.update(sessionId, {
       transcript,
       reportJson: report,
       status: InterviewSessionStatus.COMPLETED,
+      checkpointJson: Prisma.DbNull,
     });
 
     if (report !== undefined) {
       await this.notifyReportReady(session);
     }
-
-    return updated;
   }
 
   private async notifyReportReady(
     session: SessionWithRelations,
   ): Promise<void> {
     const recruiters = await repositoryWrapper.userRepository.findAll();
-    const dashboardUrl =
-      process.env.DASHBOARD_PUBLIC_URL ??
-      `http://localhost:${process.env.DASHBOARD_PORT ?? 3002}`;
-    const sessionUrl = `${dashboardUrl}/sessions/${session.id}`;
+    const adminUrl =
+      process.env.ADMIN_PUBLIC_URL ??
+      `http://localhost:${process.env.ADMIN_PORT ?? 3002}`;
+    const sessionUrl = `${adminUrl}/sessions/${session.id}`;
     const candidateName = session.candidate.name ?? session.candidate.email;
 
     for (const recruiter of recruiters) {
@@ -191,33 +484,52 @@ class SessionService {
     }
   }
 
-  private async scheduleEngineStart(
+  private async scheduleAgentStart(
     session: SessionWithRelations,
     meetingUrl: string,
   ): Promise<void> {
-    const job: EngineStartJob = {
+    const job: AgentStartJob = {
       sessionId: session.id,
       candidateId: session.candidateId,
       roleId: session.roleId,
       meetingUrl,
       scheduledAt: session.scheduledAt.toISOString(),
     };
-    await engineQueue.add("engine-start", job, {
+    await agentQueue.add("agent-start", job, {
       delay: delayUntil(session.scheduledAt, 2 * MINUTES),
     });
   }
 
-  /** Fires 15 minutes after scheduledAt — apps/interview-engine marks the
-   * session NO_SHOW if it never actually started (see
-   * engine/voice/consumer.py's "noshow-check" handler, Phase 8). A negative
-   * offset to delayUntil is what pushes the target time past scheduledAt
-   * instead of before it. */
+  /** Fires 15 minutes after scheduledAt — apps/api's own orchestratorWorker
+   * marks the session NO_SHOW if it never actually started (Phase 8). A
+   * negative offset to delayUntil is what pushes the target time past
+   * scheduledAt instead of before it. Moved from agentQueue to
+   * orchestratorQueue: this is a pure Postgres-status-timing decision, not
+   * anything apps/engine needs to be involved in any more. */
   private async scheduleNoShowCheck(
     session: SessionWithRelations,
   ): Promise<void> {
     const job: NoShowCheckJob = { sessionId: session.id };
-    await engineQueue.add("noshow-check", job, {
+    await orchestratorQueue.add("noshow-check", job, {
       delay: delayUntil(session.scheduledAt, -15 * MINUTES),
+    });
+  }
+
+  /** Fires 30 minutes after scheduledAt — must stay in sync with
+   * JOIN_WINDOW_MINUTES above and in
+   * apps/engine/agent/voice/server.py. A safety net for a
+   * session the candidate started but abandoned without deliberately
+   * ending the call and never returned to within the resume window (see
+   * orchestratorWorker.ts's "interview-timeout-finalize" handler) — a
+   * no-op for every other outcome (never started, finished normally,
+   * already handled). Moved from agentQueue to orchestratorQueue for the
+   * same reason as scheduleNoShowCheck above. */
+  private async scheduleInterviewTimeoutFinalize(
+    session: SessionWithRelations,
+  ): Promise<void> {
+    const job: InterviewTimeoutFinalizeJob = { sessionId: session.id };
+    await orchestratorQueue.add("interview-timeout-finalize", job, {
+      delay: delayUntil(session.scheduledAt, -30 * MINUTES),
     });
   }
 }

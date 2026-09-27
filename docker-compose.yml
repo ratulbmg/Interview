@@ -9,7 +9,7 @@
 # CHAT Ollama model (native, GPU/Metal passthrough doesn't exist in Docker
 # Desktop on Mac — see scripts/ollama-up.mjs; qwen3:30b-a3b is large and
 # latency-sensitive enough that CPU-only isn't acceptable there), and the
-# app processes themselves (api, dashboard, mailer, interview-engine —
+# app processes themselves (api, admin, mailer, the voice agent —
 # started by `yarn dev`).
 #
 # STT/TTS/embeddings all run here as an explicit trade-off: Docker Desktop
@@ -21,12 +21,12 @@
 # a Linux container at all, so the STT/TTS engines underneath are swapped
 # too: faster-whisper (via speaches) for STT, ONNX Kokoro (via
 # kokoro-fastapi) for TTS — both exposing an OpenAI-compatible API, which is
-# what apps/interview-engine/engine/voice/pipeline.py's OpenAISTTService/
-# OpenAITTSService talk to. The embeddings service is plain Ollama itself
-# (official image) — no engine swap needed there, just a second instance on
-# a different port, which is exactly what
-# apps/interview-engine/engine/config.py's separate EMBEDDING_BASE_URL was
-# already built to support (the same split LM Studio setups need).
+# what apps/engine/agent/stt/client.py's OpenAISTTService and
+# apps/engine/agent/tts/client.py's OpenAITTSService talk to. The embeddings
+# service is plain Ollama itself (official image) — no engine swap needed
+# there, just a second instance on a different port, which is exactly what
+# apps/engine/agent/config.py's separate EMBEDDING_BASE_URL was already
+# built to support (the same split LM Studio setups need).
 #
 # Usage:
 #   yarn docker_up      # docker compose up -d
@@ -39,6 +39,10 @@ volumes:
     name: interview_stt_model_cache
   embeddings_data:
     name: interview_embeddings_data
+  tts_xtts_voices:
+    name: interview_tts_xtts_voices
+  tts_xtts_cache:
+    name: interview_tts_xtts_cache
 
 services:
   redis:
@@ -66,7 +70,7 @@ services:
   # first inference request — it 400s until you explicitly pull one first:
   #   curl -X POST http://localhost:8000/v1/models/Systran/faster-whisper-small
   # (one-time; cached in the named volume below, matches VOICE_STT_MODEL in
-  # apps/interview-engine/engine/config.py).
+  # apps/engine/agent/config.py).
   stt:
     image: ghcr.io/speaches-ai/speaches:latest-cpu
     container_name: interview-stt
@@ -90,6 +94,25 @@ services:
     ports:
       - "8880:8880"
 
+  # Tried XTTS-v2 (via openedai-speech) here briefly for better voice
+  # quality — reverted because it's too heavy to run locally (CPU-only on
+  # Mac, no Docker GPU passthrough, noticeably higher per-utterance
+  # latency). Confirmed working via a direct curl test before reverting, so
+  # this is a real option if a faster machine or GPU passthrough becomes
+  # available later — just swap this block back in for `tts` above and set
+  # TTS_MODEL="tts-1-hd" again (see apps/engine/agent/config.py).
+  # tts-xtts-v2:
+  #   image: ghcr.io/matatonic/openedai-speech
+  #   container_name: interview-tts
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8880:8000"
+  #   environment:
+  #     PRELOAD_MODEL: "xtts"
+  #   volumes:
+  #     - tts_xtts_voices:/app/voices
+  #     - tts_xtts_cache:/app/.cache
+
   # Embeddings — plain Ollama (official image), serving nomic-embed-text
   # only. Mapped to :11435, not :11434, so it never collides with the
   # native Ollama instance (chat model, started by `yarn ollama_up`) also
@@ -97,7 +120,7 @@ services:
   # model preloaded — pull it once after first `docker_up`:
   #   curl -X POST http://localhost:11435/api/pull -d '{"name":"nomic-embed-text"}'
   # (cached in the named volume below; matches EMBEDDING_BASE_URL/
-  # LLM_EMBEDDING_MODEL in apps/interview-engine/engine/config.py).
+  # LLM_EMBEDDING_MODEL in apps/engine/agent/config.py).
   embeddings:
     image: ollama/ollama:latest
     container_name: interview-embeddings

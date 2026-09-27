@@ -11,7 +11,7 @@ import { repositoryWrapper } from "../repository/repositoryWrapper";
 import { AuthUser } from "../types/express";
 
 /** Pulls the JWT out of the httpOnly cookie set at login — the path the
- * dashboard itself uses; the browser sends it automatically and no token
+ * admin app itself uses; the browser sends it automatically and no token
  * ever touches localStorage. */
 const cookieExtractor: JwtFromRequestFunction = (req: Request) => {
   if (req && req.cookies) {
@@ -22,7 +22,7 @@ const cookieExtractor: JwtFromRequestFunction = (req: Request) => {
 
 /**
  * Hybrid extraction: an Authorization: Bearer header first (for a future
- * non-browser client), the httpOnly cookie second (the dashboard's own
+ * non-browser client), the httpOnly cookie second (the admin app's own
  * path). One strategy serves both.
  */
 const jwtOptions: StrategyOptionsWithoutRequest = {

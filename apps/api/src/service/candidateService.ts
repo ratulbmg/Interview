@@ -3,7 +3,7 @@ import { Candidate } from "@repo/db/client";
 import { apiError } from "../utils/apiError";
 import { AddCandidateRequest } from "../model/candidateModel";
 import { repositoryWrapper } from "../repository/repositoryWrapper";
-import { engineQueue } from "../lib/engineQueue";
+import { agentQueue } from "../lib/agentQueue";
 
 class CandidateService {
   async listCandidates(): Promise<Candidate[]> {
@@ -17,9 +17,9 @@ class CandidateService {
    *
    * `cvParsedJson` is left null here and filled in asynchronously: this
    * call returns as soon as the row is saved, never waiting on
-   * apps/interview-engine's CV-parsing LLM call (a `cv-parse` job is
+   * apps/engine's CV-parsing LLM call (a `cv-parse` job is
    * enqueued right after, so adding many candidates back-to-back stays
-   * instant regardless of how long parsing takes — see engine/voice/
+   * instant regardless of how long parsing takes — see agent/voice/
    * consumer.py's _process_cv_parse_job).
    */
   async addCandidate(
@@ -44,7 +44,7 @@ class CandidateService {
       cvUrl,
     });
 
-    await engineQueue.add("cv-parse", { candidateId: candidate.id });
+    await agentQueue.add("cv-parse", { candidateId: candidate.id });
 
     return candidate;
   }
