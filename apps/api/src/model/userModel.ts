@@ -16,3 +16,18 @@ export interface UserDetailsResponse {
   name: string;
   email: string;
 }
+
+/** One row on the Users page — never includes `passwordHash`. The four
+ * counts are a cheap Prisma `_count` on the same query, not a separate
+ * roundtrip per user. */
+export interface UserSummary {
+  id: number;
+  uniqueId: string;
+  name: string;
+  email: string;
+  createdAt: Date;
+  candidatesCount: number;
+  rolesCount: number;
+  questionsCount: number;
+  sessionsCount: number;
+}

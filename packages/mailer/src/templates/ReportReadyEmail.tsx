@@ -24,6 +24,7 @@ export function ReportReadyEmail({
       </Text>
       <Button
         href={sessionUrl}
+        className="email-button"
         style={{
           backgroundColor: emailTheme.primary,
           color: emailTheme.primaryForeground,

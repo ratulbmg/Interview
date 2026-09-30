@@ -12,9 +12,9 @@ from dataclasses import dataclass
 import numpy as np
 
 from agent.config import SIMILARITY_REJECTION_THRESHOLD
-from agent.interview import db
+from agent.interview import agent_data_client
+from agent.interview.agent_data_client import QuestionRecord, RoleRecord
 from agent.interview.cv import CandidateProfile
-from agent.interview.db import QuestionRecord, RoleRecord
 from agent.llm import client as llm_client
 
 # How many of the top CV-relevance matches to weighted-sample from, once a
@@ -44,7 +44,7 @@ def _embedding_for(question: QuestionRecord) -> list[float]:
     if question.embedding is not None:
         return question.embedding
     embedding = llm_client.embed(question.text)
-    db.save_question_embedding(question.id, embedding)
+    agent_data_client.save_question_embedding(question.id, embedding)
     question.embedding = embedding
     return embedding
 

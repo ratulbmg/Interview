@@ -6,8 +6,8 @@ decision (is this candidate too early, has the link expired, is this a fresh
 start or a resume, what should the bot say) — this process just asks it what
 to do (`join`) and reports what happened (`save_selected_questions`,
 `report_consent_given`, `report_disconnected`). The only thing still decided
-here is scoring (see agent/interview/evaluator.py and the /score route in
-agent/api/routes.py), because only this process has the LLM client wired
+here is scoring (see agent/scoring/evaluator.py and the /score route in
+agent/scoring/routes.py), because only this process has the LLM client wired
 up.
 
 Same shared-secret header apps/api's old webhook route (see the now-deleted
@@ -68,16 +68,28 @@ async def report_consent_given(session_id: int) -> None:
         response.raise_for_status()
 
 
-async def report_disconnected(session_id: int, transcript: list[dict], selected_questions: list[dict], ended_deliberately: bool) -> None:
+async def report_disconnected(
+    session_id: int,
+    transcript: list[dict],
+    selected_questions: list[dict],
+    ended_deliberately: bool,
+    usage: dict | None = None,
+) -> None:
     """Called on every disconnect — replaces the old local
     checkpoint-or-finalize logic entirely. The API decides what a
     disconnect means (checkpoint and allow resume vs. score and finalize);
-    this agent doesn't need to know which."""
+    this agent doesn't need to know which.
+
+    `usage` (see agent/conversation/usage_tracking.py's SegmentUsage) is
+    what this one connection segment actually consumed — the API adds it
+    to whatever the session already has, never overwrites, so a
+    drop-and-resume's later segment doesn't erase an earlier one's usage."""
     url = f"{API_URL}/agent/sessions/{session_id}/disconnected"
     body = {
         "transcript": transcript,
         "selectedQuestions": selected_questions,
         "endedDeliberately": ended_deliberately,
+        "usage": usage,
     }
     async with httpx.AsyncClient() as client:
         response = await client.post(url, json=body, headers=_headers(), timeout=_DEFAULT_TIMEOUT)

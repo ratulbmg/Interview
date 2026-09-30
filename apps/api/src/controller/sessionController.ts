@@ -6,38 +6,48 @@ import { scheduleSessionSchema, idParamSchema } from "../validation";
 
 export const listSessions = asyncHandler(
   async (req: Request, res: Response) => {
-    const response = await sessionService.listSessions();
+    const response = await sessionService.listSessions(req.user!.id);
     res.status(200).json(new ApiResponse(200, response, "Sessions fetched"));
+  },
+);
+
+export const listResults = asyncHandler(
+  async (req: Request, res: Response) => {
+    const response = await sessionService.listResults(req.user!.id);
+    res.status(200).json(new ApiResponse(200, response, "Results fetched"));
   },
 );
 
 export const getSession = asyncHandler(async (req: Request, res: Response) => {
   const { id } = idParamSchema.parse(req.params);
-  const response = await sessionService.getSession(id);
+  const response = await sessionService.getSession(id, req.user!.id);
   res.status(200).json(new ApiResponse(200, response, "Session fetched"));
 });
 
 export const scheduleSession = asyncHandler(
   async (req: Request, res: Response) => {
     const validated = scheduleSessionSchema.parse(req.body);
-    const response = await sessionService.scheduleSession({
-      ...validated,
-      scheduledAt: validated.scheduledAt.toISOString(),
-    });
+    const response = await sessionService.scheduleSession(
+      {
+        ...validated,
+        scheduledAt: validated.scheduledAt.toISOString(),
+      },
+      req.user!.id,
+    );
     res.status(201).json(new ApiResponse(201, response, "Session scheduled"));
   },
 );
 
 export const sendInvite = asyncHandler(async (req: Request, res: Response) => {
   const { id } = idParamSchema.parse(req.params);
-  const response = await sessionService.sendInvite(id);
+  const response = await sessionService.sendInvite(id, req.user!.id);
   res.status(200).json(new ApiResponse(200, response, "Invite sent"));
 });
 
 export const deleteSession = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = idParamSchema.parse(req.params);
-    await sessionService.deleteSession(id);
+    await sessionService.deleteSession(id, req.user!.id);
     res.status(200).json(new ApiResponse(200, null, "Session deleted"));
   },
 );

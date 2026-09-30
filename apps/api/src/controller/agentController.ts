@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { sessionService } from "../service";
+import { sessionService, agentDataService } from "../service";
 import { ApiResponse } from "../utils/apiResponse";
 import { asyncHandler } from "../utils/asyncHandler";
 import { idParamSchema } from "../validation";
@@ -7,6 +7,7 @@ import {
   joinRoomSchema,
   questionsSelectedSchema,
   disconnectedSchema,
+  agentDataRequestSchema,
 } from "../validation";
 
 /**
@@ -53,14 +54,26 @@ export const consentGiven = asyncHandler(
 export const disconnected = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = idParamSchema.parse(req.params);
-    const { transcript, selectedQuestions, endedDeliberately } =
+    const { transcript, selectedQuestions, endedDeliberately, usage } =
       disconnectedSchema.parse(req.body);
     await sessionService.reportDisconnect(
       id,
       transcript,
       selectedQuestions,
       endedDeliberately,
+      usage,
     );
     res.status(200).json(new ApiResponse(200, null, "Disconnect recorded"));
   },
 );
+
+/**
+ * apps/engine's one and only route into Postgres — see
+ * agentDataService.ts's module comment. `action` picks which of the old
+ * agent/interview/db.py functions this call replaces.
+ */
+export const agentData = asyncHandler(async (req: Request, res: Response) => {
+  const validated = agentDataRequestSchema.parse(req.body);
+  const response = await agentDataService.handle(validated);
+  res.status(200).json(new ApiResponse(200, response, "Agent data resolved"));
+});

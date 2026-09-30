@@ -6,8 +6,11 @@ import { repositoryWrapper } from "../repository/repositoryWrapper";
 import { agentQueue } from "../lib/agentQueue";
 
 class CandidateService {
-  async listCandidates(): Promise<Candidate[]> {
-    return repositoryWrapper.candidateRepository.findAllOrdered();
+  /** Each recruiter only ever sees candidates they added — there's no
+   * shared, cross-recruiter list (see packages/db/prisma/schema.prisma's
+   * Candidate.createdBy). */
+  async listCandidates(userId: number): Promise<Candidate[]> {
+    return repositoryWrapper.candidateRepository.findAllOrderedForUser(userId);
   }
 
   /**
@@ -25,12 +28,17 @@ class CandidateService {
   async addCandidate(
     data: AddCandidateRequest,
     cvFile: Express.Multer.File,
+    userId: number,
   ): Promise<Candidate> {
     const existing = await repositoryWrapper.candidateRepository.findByEmail(
       data.email,
+      userId,
     );
     if (existing) {
-      throw new apiError("A candidate with this email already exists", 409);
+      throw new apiError(
+        "You already have a candidate with this email address",
+        409,
+      );
     }
 
     const publicUrl =
@@ -42,6 +50,7 @@ class CandidateService {
       email: data.email,
       name: data.name?.trim() || null,
       cvUrl,
+      createdBy: { connect: { id: userId } },
     });
 
     await agentQueue.add("cv-parse", { candidateId: candidate.id });
@@ -52,9 +61,14 @@ class CandidateService {
   /** Cascades to that candidate's sessions at the database level (see
    * packages/db/prisma/schema.prisma's onDelete: Cascade on
    * InterviewSession.candidate) — not handled here in application code, so
-   * it holds regardless of which process deletes the row. */
-  async deleteCandidate(id: number): Promise<void> {
-    const existing = await repositoryWrapper.candidateRepository.findById(id);
+   * it holds regardless of which process deletes the row. A candidate that
+   * exists but belongs to another recruiter is treated identically to one
+   * that doesn't exist. */
+  async deleteCandidate(id: number, userId: number): Promise<void> {
+    const existing = await repositoryWrapper.candidateRepository.findByIdForUser(
+      id,
+      userId,
+    );
     if (!existing) {
       throw new apiError("Candidate not found", 404);
     }

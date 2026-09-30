@@ -50,6 +50,29 @@ speaking the literal message text handed back. The one call that runs in
 the opposite direction is `/score`, because only the Python process has an
 LLM client wired up.
 
+**Everything a recruiter owns is scoped to them.** `Candidate`, `Role`, and
+`Question` all carry a `createdById` foreign key to the `User` who created
+them (`packages/db/prisma/schema.prisma`), and every recruiter-facing
+repository method takes that recruiter's id as a required argument
+(`findAllOrderedForUser`, `findByIdForUser`, `findByEmail(email, userId)`,
+etc. — always `findFirst` on the combined `{id/email/name, createdById}`
+filter, never Prisma's `findUnique`, so a lookup for another recruiter's
+row behaves identically to a lookup for a row that doesn't exist: a plain
+`404`, never a leak of whether it exists). `Candidate.email` and
+`Role.name` are unique per recruiter (`@@unique([email, createdById])` /
+`@@unique([name, createdById])`), not globally, so two different
+recruiters can each have their own "Jane Doe" or their own "Frontend
+Engineer." The two roles `packages/db/src/seed.ts` creates on a fresh
+database are attributed to the seeded recruiter (`recruiter@example.com`)
+like anything else — there is no such thing as an unowned or globally
+shared role. `InterviewSession` (and therefore the Results list, §7) is
+scoped the same way via its own `createdById`, set at `scheduleSession`
+time. The one place this deliberately does **not** apply is the
+candidate-facing join flow (§4) and the webhook-driven lifecycle calls
+(§5.4, §6.4) — a candidate's browser and the Python agent have no
+recruiter session to scope by, so those paths look sessions up by room
+token or by id with no owner check, exactly as before.
+
 ---
 
 ## 2. Recruiter setup: candidate → schedule → invite
@@ -74,7 +97,10 @@ cv: <PDF file>
 ```
 
 **What happens** (`apps/api/src/service/candidateService.ts`):
-1. Reject with `409` if a `Candidate` with this email already exists.
+1. Reject with `409` if *this recruiter* already has a `Candidate` with
+   this email (`candidateRepository.findByEmail(email, userId)`) — a
+   different recruiter can have their own candidate at the same email
+   address with no conflict.
 2. The uploaded PDF is saved to `apps/api/uploads/` by `uploadMiddleware.ts`; a public URL is built as `{API_PUBLIC_URL}/uploads/{filename}`.
 3. Insert into `candidates`:
    ```json
@@ -130,14 +156,19 @@ cv: <PDF file>
 { "candidateId": 42, "roleId": 1, "scheduledAt": "2026-10-02T14:00:00.000Z" }
 ```
 
-**What happens** (`sessionService.scheduleSession`): validates the candidate and role both exist, then inserts one row into `sessions`:
+**What happens** (`sessionService.scheduleSession`): validates that both the
+candidate and the role exist *and belong to the logged-in recruiter*
+(`candidateRepository.findByIdForUser` / `roleRepository.findByIdForUser`
+— another recruiter's candidate or role id is a `404` here, same as
+anywhere else), then inserts one row into `sessions`:
 ```json
 {
   "candidateId": 42, "roleId": 1,
   "status": "SCHEDULED",
   "scheduledAt": "2026-10-02T14:00:00.000Z",
   "meetingUrl": null, "transcript": null, "reportJson": null,
-  "checkpointJson": null, "consentGivenAt": null
+  "checkpointJson": null, "consentGivenAt": null,
+  "createdById": 7
 }
 ```
 No queue job is touched yet — nothing is sent to the candidate until "Send Invite" is pressed. This is deliberately a separate action from adding the candidate.
@@ -300,16 +331,22 @@ Network blip, closed tab, dead battery — `on_client_disconnected` fires with `
 
 ### 6.4 What happens next, either way
 
-`on_client_disconnected` extracts the transcript from the LLM context and calls `orchestrator_client.report_disconnected(session_id, transcript, selected_questions, ended_deliberately)` →
+`on_client_disconnected` extracts the transcript from the LLM context, closes out this connection segment's usage tracking (`agent/conversation/usage_tracking.py`'s `UsageTracker.finish()` — see box below), and calls `orchestrator_client.report_disconnected(session_id, transcript, selected_questions, ended_deliberately, usage)` →
 ```
 POST /agent/sessions/:id/disconnected
-{ "transcript": [...], "selectedQuestions": [...], "endedDeliberately": true|false }
+{
+  "transcript": [...], "selectedQuestions": [...], "endedDeliberately": true|false,
+  "usage": { "llmPromptTokens": 812, "llmCompletionTokens": 194, "sttAudioSeconds": 41.3, "ttsCharacters": 623, "interviewSeconds": 96.2 }
+}
 ```
 On the API side (`sessionService.reportDisconnect`):
+- **`usage` is added to the session's running totals first, unconditionally** (`sessionRepository.incrementUsage`) — regardless of how the disconnect turns out, since a connection segment that gets checkpointed for later resume still genuinely consumed tokens/seconds/characters. A later resume's own segment adds to this one, never replaces it.
 - **`endedDeliberately: true`** → scores immediately and finalizes (§7) — the candidate is done, no reason to wait.
 - **`endedDeliberately: false`** → just writes `checkpointJson = { transcript, selectedQuestions }` and leaves `status` as `IN_PROGRESS`. If the candidate reconnects within 30 minutes of `scheduledAt`, §4's `resume` branch picks this back up. If they don't, `interview-timeout-finalize` (§3) scores and finalizes it for them once the window closes.
 
 A stale-connection guard (`agent/voice/ready_rooms.py`, an in-process counter keyed by room token — the only in-memory state left in the whole agent process) makes sure that if a candidate reconnects *before* their old connection's disconnect handler has run, the old handler recognizes a newer connection has already taken over and skips reporting, rather than racing to report the same disconnect twice.
+
+> **Real usage, not estimated.** `UsageTracker` (built on Pipecat's own `ServiceMetricsObserver` — an observer, not a pipeline processor, so it only watches frames go by) accumulates what each service actually reported for this connection segment: `LLMUsageMetricsData` (prompt/completion tokens, requested via `stream_options.include_usage` on every LLM call), `STTUsageMetricsData` (audio seconds transcribed), and `TTSUsageMetricsData` (characters synthesized) — plus its own wall-clock timer for `interviewSeconds`. `PipelineWorker(params=PipelineParams(enable_metrics=True, enable_usage_metrics=True), ...)` is what makes the underlying services actually emit these; without `enable_usage_metrics`, nothing is reported. See §Appendix B for where this lands, and the AI Usage page description in Appendix A for how it's turned into a dollar figure.
 
 ---
 
@@ -352,21 +389,33 @@ All recruiter-facing routes require the `token` httpOnly JWT cookie (`authMiddle
 
 ### Recruiter-facing (`apps/api`, cookie auth)
 
+Every list/get/create/update/delete route below is scoped to the
+logged-in recruiter (see §1's multi-tenancy note) unless stated otherwise
+— "all X" always means "all X this recruiter created," never a
+cross-recruiter view.
+
 | Method & path | Body | Notes |
 |---|---|---|
 | `POST /auth/login` | `{ email, password }` | Sets the `token` cookie |
 | `POST /auth/logout` | — | Clears the cookie |
 | `GET /auth/me` | — | Current recruiter, from the JWT |
-| `GET /candidates` | — | All candidates |
+| `GET /candidates` | — | This recruiter's candidates |
 | `POST /candidates` | `multipart/form-data`: `email`, `name?`, `cv` (file) | `201`; enqueues `cv-parse` |
 | `DELETE /candidates/:id` | — | Cascades to all of that candidate's sessions |
-| `GET /sessions` | — | All sessions, with candidate + role |
-| `GET /sessions/:id` | — | One session |
-| `POST /sessions` | `{ candidateId, roleId, scheduledAt }` | `201` |
+| `GET /sessions` | — | This recruiter's sessions, with candidate + role |
+| `GET /results` | — | This recruiter's completed sessions with a report — each includes `overallPercentage`, `dimensionScores`, and the Eligible/Not Eligible verdict (`apps/api/src/lib/eligibility.ts`) |
+| `GET /sessions/:id` | — | One session (`404` if it belongs to another recruiter) |
+| `POST /sessions` | `{ candidateId, roleId, scheduledAt }` | `201`; `candidateId`/`roleId` must belong to this recruiter |
 | `POST /sessions/:id/send-invite` | — | See §2.3 |
 | `DELETE /sessions/:id` | — | Only this session |
-| `GET /roles` | — | All roles |
-| `GET /questions` | — | Read-only bank view — grown by `apps/engine`, not authored here |
+| `GET /roles` | — | This recruiter's roles (the two seeded roles are attributed to the seed script's recruiter, not global) |
+| `POST /roles` | `{ name, description, competencies: string[] }` | `201`; builds a fixed blueprint — `opener` → `cv_probe` → one `core_competency` slot per entry in `competencies`, in order → `scenario` → `behavioral` → `candidate_questions` (`roleService.createRole`) |
+| `GET /questions` | — | This recruiter's question bank — also grown by `apps/engine` writing back embeddings/usage counts, never creating/editing/deleting a question itself |
+| `POST /questions` | See `createQuestionSchema` (`text`, `competency`, `difficulty`, plus the adaptive-questioning fields from §5.3 — `questionType`, `objective?`, `expectedSignals?`, `maxFollowups`, `maxDurationSeconds`, all with defaults) | `201` |
+| `PATCH /questions/:id` | Same fields, all optional, no defaults — an omitted field means "leave it alone" | `200` |
+| `DELETE /questions/:id` | — | — |
+| `GET /users` | — | Every recruiter account on the platform (name, email, joined date, plus a count of what each one has created) — deliberately **not** scoped to the caller, since there's no admin/non-admin distinction on `User` yet; never returns `passwordHash` |
+| `GET /usage/cost` | — | This recruiter's own "AI Usage & Infrastructure" page (its own sidebar tab, not a Dashboard section). Usage totals (interviews, minutes, LLM tokens, STT seconds, TTS characters) are real, summed from this recruiter's `InterviewSession` rows (see §6.4's box and `sessionRepository.aggregateUsageForUser`); only the per-unit pricing rates and the flat infrastructure estimate still come from `apps/engine/cost.txt`, since neither has a real measurement to compute from — see `apps/api/src/usage/usageService.ts`. `404` if the pricing file is missing, `500` if it's malformed. |
 
 ### Agent-facing (`apps/api`, webhook-secret auth) — see §4, §5.4, §6.4
 
@@ -397,6 +446,20 @@ All recruiter-facing routes require the `token` httpOnly JWT cookie (`authMiddle
 | `checkpointJson` | `questions-selected`, `disconnected` (accidental) | `{ transcript, selectedQuestions }` — cleared on finalize |
 | `consentGivenAt` | `consent-given` | Set once, on first connect |
 | `transcript` / `reportJson` | `finalizeSession` | The final, permanent record |
+| `createdById` | `scheduleSession`, from the JWT | The recruiter this session belongs to — see §1 |
+| `llmPromptTokensUsed` / `llmCompletionTokensUsed` | `disconnected`, every time (increment) | Real LLM usage, summed across every connection segment — see §6.4's box |
+| `sttAudioSecondsUsed` | `disconnected`, every time (increment) | Real seconds of audio the STT service actually transcribed |
+| `ttsCharactersUsed` | `disconnected`, every time (increment) | Real characters the TTS service actually synthesized |
+| `interviewSecondsUsed` | `disconnected`, every time (increment) | Real wall-clock time the pipeline was actually connected, summed across reconnects |
+
+All five usage fields default to `0` and are only ever incremented, never overwritten — a session's total is the sum of every connection segment it ever had, which is what makes a drop-and-resume's usage additive instead of lossy. `GET /usage/cost` (Appendix A) sums these across a recruiter's sessions to build the AI Usage page.
+
+**Recruiter ownership** — `Candidate`, `Role`, `Question`, and
+`InterviewSession` each have a `createdById Int` foreign key to `User`
+(`createdBy User @relation(...)`), and `User` carries the inverse
+`candidates`/`roles`/`questions`/`sessions` relations. `Candidate.email`
+and `Role.name` are unique per recruiter (`@@unique([email, createdById])`,
+`@@unique([name, createdById])`) rather than globally unique — see §1.
 
 ---
 

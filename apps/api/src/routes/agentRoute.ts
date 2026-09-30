@@ -4,6 +4,7 @@ import {
   questionsSelected,
   consentGiven,
   disconnected,
+  agentData,
 } from "../controller";
 import webhookAuth from "../middleware/webhookAuthMiddleware";
 
@@ -29,5 +30,12 @@ agentRouter.post(
   webhookAuth,
   disconnected,
 );
+
+// apps/engine has no database connection of its own — this is the one
+// route it uses for every Postgres read/write it needs (see
+// agentDataService.ts). Its old agent/interview/db.py, which used to talk
+// straight to Postgres via psycopg, is now just an HTTP client to this
+// single endpoint, one `action` per call.
+agentRouter.post("/agent/data", webhookAuth, agentData);
 
 export default agentRouter;

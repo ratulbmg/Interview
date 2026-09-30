@@ -10,8 +10,8 @@ on every connection it asks the API what to do for the room token
 back, dispatching into agent/conversation/manager.py. It also reports
 events back to the API (consent given, disconnected) instead of deciding
 anything itself. The only thing still decided here is scoring a finished
-interview (see the /score route mounted below, agent/api/routes.py, and
-agent/interview/evaluator.py) — that needs an LLM call only this process
+interview (see the /score route mounted below, agent/scoring/routes.py, and
+agent/scoring/evaluator.py) — that needs an LLM call only this process
 can make.
 
 Run with: python -m agent.voice.server
@@ -35,11 +35,11 @@ from pipecat.runner.utils import create_transport
 from pipecat.transports.base_transport import TransportParams
 
 from agent import orchestrator_client
-from agent.api.routes import router
-from agent.api.schemas import selected_questions_from_dtos
 from agent.config import AGENT_HOST, AGENT_PORT
 from agent.conversation.manager import _run_interview_bot, _speak_and_end
 from agent.jobs.consumer import start_consumer
+from agent.scoring.routes import router
+from agent.scoring.serializers import selected_questions_from_dtos
 
 # aioice (WebRTC's underlying ICE layer) drops the peer connection if it
 # misses CONSENT_FAILURES consecutive consent-freshness STUN checks

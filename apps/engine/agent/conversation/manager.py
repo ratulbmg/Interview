@@ -1,15 +1,20 @@
 """Builds the STT -> LLM -> TTS pipeline for one candidate's interview and
 runs it for the lifetime of a WebRTC connection.
 
-The question flow is encoded declaratively in the LLM's system prompt (the
-fixed, per-role blueprint slots, filled with this candidate's selected
-questions — see agent/interview/questions.py, agent/interview/flow.py)
-rather than driven turn-by-turn by this module: a live voice conversation
-needs the LLM itself asking natural 1-2 follow-ups as the candidate
-answers, which is what it's already doing every turn, not a separate
-scripted step (compare apps/engine/agent/interview_loop.py's
-text-only CLI, which calls out to the LLM explicitly between turns because
-there's no live conversational loop to piggyback on there).
+Question-by-question progression is driven turn-by-turn now, not left
+entirely to the LLM's own judgment: agent/interview/adaptive_questioning.py's
+AdaptiveQuestioningProcessor — built and inserted into the pipeline here,
+since wiring it into the live frame stream is a pipeline-construction
+concern, even though the processor itself is interview-domain logic — sits
+between the user context aggregator and the LLM, and after each candidate
+answer, runs agent/interview/answer_analyzer.py + agent/interview/
+followup_policy.py to decide — deterministically, with hard
+maxFollowups/maxDurationSeconds limits — whether to inject a targeted
+follow-up directive or move on to the next selected question. The LLM still
+owns all conversational judgment *within* whichever directive it's given
+(how exactly to phrase a question, how to react to what the candidate
+says); it just no longer decides *when* to stop probing a topic or which
+question comes next.
 
 STT and TTS talk to self-hosted Docker containers (speaches, kokoro-fastapi
 — see docker-compose.yml) over their own OpenAI-compatible endpoints, via
@@ -40,14 +45,16 @@ from pipecat.transports.base_transport import BaseTransport
 from pipecat.workers.runner import WorkerRunner
 
 from agent import orchestrator_client
-from agent.api.schemas import dtos_from_selected_questions
 from agent.config import LLM_API_KEY, LLM_BASE_URL, VOICE_LLM_MODEL
 from agent.conversation.logging import ConversationLogObserver
 from agent.conversation.prosody import ProsodyPacingProcessor
 from agent.conversation.state import extract_transcript
 from agent.conversation.turn_manager import load_turn_timing_config
-from agent.interview.flow import END_INTERVIEW_FUNCTION_NAME, END_INTERVIEW_TOOL, _build_system_instruction
+from agent.conversation.usage_tracking import UsageTracker
+from agent.interview.adaptive_questioning import AdaptiveQuestioningProcessor
+from agent.interview.prompt import END_INTERVIEW_FUNCTION_NAME, END_INTERVIEW_TOOL, _build_system_instruction
 from agent.interview.questions import SelectedQuestion
+from agent.scoring.serializers import dtos_from_selected_questions
 from agent.stt.client import build_stt_service
 from agent.tts.client import build_tts_service
 from agent.voice.ready_rooms import bump as bump_connection, is_current as is_current_connection
@@ -59,11 +66,15 @@ def build_pipeline(
     role_name: str,
     selected_questions: list[SelectedQuestion],
     resume_messages: list[dict] | None = None,
-) -> tuple[Pipeline, LLMContext, OpenAILLMService]:
+) -> tuple[Pipeline, LLMContext, OpenAILLMService, AdaptiveQuestioningProcessor]:
     """`resume_messages` seeds the context for a "resume" join instruction
     (apps/api's /agent/rooms/join hands back the prior transcript — see
     agent/voice/server.py's bot()/_run_interview_bot below) so the LLM
-    picks the conversation back up instead of starting over.
+    picks the conversation back up instead of starting over. Also tells
+    AdaptiveQuestioningProcessor below whether to treat this connection's
+    first user turn as the candidate's consent confirmation (fresh start)
+    or a genuine continuation (resume, since consent already happened on
+    the earlier connection).
 
     STT and TTS each talk to their own self-hosted, OpenAI-compatible
     Docker container (see agent/stt/client.py, agent/tts/client.py, and
@@ -72,6 +83,8 @@ def build_pipeline(
     that wrapper hardcodes Ollama's dummy API key internally and has no way
     to override it, which breaks any OpenAI-compatible server that actually
     enforces one (LM Studio's does)."""
+    is_resume = bool(resume_messages)
+
     stt = build_stt_service()
 
     tts = build_tts_service()
@@ -81,7 +94,7 @@ def build_pipeline(
         api_key=LLM_API_KEY,
         settings=OpenAILLMService.Settings(
             model=VOICE_LLM_MODEL,
-            system_instruction=_build_system_instruction(candidate_name, role_name, selected_questions),
+            system_instruction=_build_system_instruction(candidate_name, role_name),
         ),
     )
 
@@ -91,7 +104,7 @@ def build_pipeline(
     # actual handler is registered by _run_interview_bot below, once it has
     # a PipelineWorker to speak the closing line and hang up through. The
     # LLM decides *whether* to call it, same as it decides everything else
-    # about conversation content (see agent/interview/flow.py); this
+    # about conversation content (see agent/interview/prompt.py); this
     # module just wires the mechanism up.
     context = LLMContext(messages=resume_messages or None, tools=[END_INTERVIEW_TOOL])
     # SileroVADAnalyzer on the user aggregator is what gives this pipeline
@@ -119,11 +132,20 @@ def build_pipeline(
     # pass-through no-op when ENABLE_INTERVIEW_PROSODY is false.
     prosody = ProsodyPacingProcessor(timing)
 
+    # Sits between the user aggregator and the LLM: after each candidate
+    # answer, decides (deterministically — see followup_policy.py) whether
+    # to inject a targeted follow-up directive or move on to the next
+    # selected question, before the LLM ever sees the turn. See that
+    # module's own docstring for exactly why this position is safe to
+    # mutate the context from.
+    adaptive_questioning = AdaptiveQuestioningProcessor(selected_questions, is_resume=is_resume)
+
     pipeline = Pipeline(
         [
             transport.input(),
             stt,
             aggregators.user(),
+            adaptive_questioning,
             llm,
             prosody,
             tts,
@@ -132,7 +154,7 @@ def build_pipeline(
         ]
     )
 
-    return pipeline, context, llm
+    return pipeline, context, llm, adaptive_questioning
 
 
 async def _speak_and_end(transport: BaseTransport, message: str) -> None:
@@ -170,12 +192,18 @@ async def _run_interview_bot(
     prior_transcript: list[dict] | None = None,
 ) -> None:
     is_resume = prior_transcript is not None and len(prior_transcript) > 0
-    pipeline, context, llm = build_pipeline(transport, candidate_name, role_name, selected_questions, resume_messages=prior_transcript)
+    pipeline, context, llm, adaptive_questioning = build_pipeline(
+        transport, candidate_name, role_name, selected_questions, resume_messages=prior_transcript
+    )
 
+    # enable_usage_metrics is what makes STT/LLM/TTS services actually emit
+    # the usage events usage_tracker.observer turns into totals — without
+    # it, ServiceMetricsObserver never fires (see usage_tracking.py).
+    usage_tracker = UsageTracker()
     worker = PipelineWorker(
         pipeline,
-        params=PipelineParams(enable_metrics=True),
-        observers=[ConversationLogObserver()],
+        params=PipelineParams(enable_metrics=True, enable_usage_metrics=True),
+        observers=[ConversationLogObserver(), usage_tracker.observer],
     )
     runner = WorkerRunner()
     await runner.add_workers(worker)
@@ -187,7 +215,7 @@ async def _run_interview_bot(
     async def _handle_end_interview_call(params: FunctionCallParams) -> None:
         nonlocal ended_deliberately
         # The LLM decided the candidate explicitly asked to stop (see the
-        # end_interview instruction/tool in agent/interview/flow.py) — same
+        # end_interview instruction/tool in agent/interview/prompt.py) — same
         # outcome as Room.tsx's "End Interview" button (on_client_message
         # below): mark it deliberate so the disconnect handler reports it
         # for immediate scoring, not a checkpoint-and-resume.
@@ -209,7 +237,7 @@ async def _run_interview_bot(
     async def on_client_ready(rtvi):
         nonlocal consent_logged
         if not consent_logged:
-            # The system prompt (agent/interview/flow.py) makes the
+            # The system prompt (agent/interview/prompt.py) makes the
             # recording/AI-evaluation notice the first thing the bot says —
             # reported here, once, right as that flow kicks off.
             try:
@@ -224,7 +252,10 @@ async def _run_interview_bot(
         if is_resume:
             context.add_message({"role": "user", "content": "[The candidate just reconnected after a brief interruption. Briefly acknowledge that and continue the interview from where it left off — don't restart or re-ask what's already been covered.]"})
         else:
-            context.add_message({"role": "user", "content": "[Begin the interview now: start with the recording/AI-evaluation notice, then greet the candidate by name and ask the first question.]"})
+            # AdaptiveQuestioningProcessor injects the first question itself
+            # (see its "first turn for this question" branch) — this only
+            # needs to kick off the recording notice and greeting.
+            context.add_message({"role": "user", "content": "[Begin the interview now: start with the recording/AI-evaluation notice, then greet the candidate by name.]"})
         await worker.queue_frames([LLMRunFrame()])
 
     @worker.rtvi.event_handler("on_client_message")
@@ -252,7 +283,14 @@ async def _run_interview_bot(
             return
 
         try:
-            await orchestrator_client.report_disconnected(session_id, transcript, dtos_from_selected_questions(selected_questions), ended_deliberately)
+            # remaining_questions (not the original selected_questions) —
+            # anything AdaptiveQuestioningProcessor already advanced past
+            # is done; a resume should pick up at the current question, not
+            # repeat every question from the start (see that class's
+            # remaining_questions docstring).
+            remaining = dtos_from_selected_questions(adaptive_questioning.remaining_questions)
+            usage = usage_tracker.finish().as_dict()
+            await orchestrator_client.report_disconnected(session_id, transcript, remaining, ended_deliberately, usage)
         except Exception as error:
             logger.error(f"Failed to report disconnect for session {session_id}: {error}")
 

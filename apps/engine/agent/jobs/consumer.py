@@ -40,9 +40,10 @@ from bullmq import Worker, Job
 
 from agent import orchestrator_client
 from agent.config import REDIS_URL
-from agent.interview import db
+from agent.interview import agent_data_client
 from agent.interview.cv import CandidateProfile, parse_cv
 from agent.interview.questions import select_questions
+from agent.scoring.serializers import dtos_from_selected_questions
 
 AGENT_QUEUE_NAME = "agent-jobs"
 
@@ -69,20 +70,26 @@ async def _download_and_parse_cv(cv_url: str) -> CandidateProfile:
 
 async def _process_cv_parse_job(data: dict) -> None:
     candidate_id = data["candidateId"]
-    candidate = db.get_candidate_by_id(candidate_id)
+    # agent_data_client calls are blocking HTTP requests to apps/api (see
+    # agent/interview/agent_data_client.py), not local Postgres queries —
+    # off the event loop via asyncio.to_thread like every other blocking
+    # call here.
+    candidate = await asyncio.to_thread(agent_data_client.get_candidate_by_id, candidate_id)
     print(f"agent-jobs: parsing CV for candidate {candidate_id}")
     profile = await _download_and_parse_cv(candidate.cv_url)
-    await asyncio.to_thread(db.save_candidate_cv_parsed, candidate_id, profile)
+    await asyncio.to_thread(agent_data_client.save_candidate_cv_parsed, candidate_id, profile)
     print(f"agent-jobs: candidate {candidate_id} CV parsed and saved")
 
 
 async def _process_agent_start_job(data: dict) -> None:
-    session_id, candidate_id, role_id = data["sessionId"], data["candidateId"], data["roleId"]
+    session_id, candidate_id, role_id, created_by_id = data["sessionId"], data["candidateId"], data["roleId"], data["createdById"]
     print(f"agent-jobs: preparing session {session_id} (candidate {candidate_id}, role {role_id})")
 
-    candidate = db.get_candidate_by_id(candidate_id)
-    role = db.get_role_by_id(role_id)
-    bank = db.get_questions()
+    candidate = await asyncio.to_thread(agent_data_client.get_candidate_by_id, candidate_id)
+    role = await asyncio.to_thread(agent_data_client.get_role_by_id, role_id)
+    # Only the scheduling recruiter's own question bank — see
+    # agent_data_client.get_questions's docstring.
+    bank = await asyncio.to_thread(agent_data_client.get_questions, created_by_id)
 
     if candidate.cv_parsed_json is not None:
         profile = CandidateProfile(**candidate.cv_parsed_json)
@@ -94,11 +101,15 @@ async def _process_agent_start_job(data: dict) -> None:
         # isn't repeated if the room gets re-prepared.
         print(f"agent-jobs: session {session_id} — cvParsedJson not ready yet, parsing inline")
         profile = await _download_and_parse_cv(candidate.cv_url)
-        await asyncio.to_thread(db.save_candidate_cv_parsed, candidate_id, profile)
+        await asyncio.to_thread(agent_data_client.save_candidate_cv_parsed, candidate_id, profile)
 
     selected = await asyncio.to_thread(select_questions, profile, role, bank)
 
-    selected_dicts = [{"slot": q.slot, "competency": q.competency, "questionText": q.question.text} for q in selected]
+    # dtos_from_selected_questions (agent/scoring/serializers.py) is the
+    # one place this wire shape is defined — every adaptive field it
+    # carries has to survive this round-trip, or the live interview never
+    # sees it again (see that module's docstring).
+    selected_dicts = dtos_from_selected_questions(selected)
     await orchestrator_client.save_selected_questions(session_id, selected_dicts)
     print(f"agent-jobs: session {session_id} — {len(selected)} questions selected and reported to the API")
 

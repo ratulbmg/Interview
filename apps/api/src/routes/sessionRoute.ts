@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   listSessions,
+  listResults,
   getSession,
   scheduleSession,
   sendInvite,
@@ -10,6 +11,11 @@ import authenticate from "../middleware/authMiddleware";
 
 const sessionRouter = Router();
 
+// Scored sessions with an Eligible/Not Eligible verdict — see
+// sessionService.listResults. Its own top-level path (not nested under
+// /sessions) since the recruiter-facing Results screen is its own
+// dashboard section, not a session sub-resource.
+sessionRouter.get("/results", authenticate, listResults);
 sessionRouter.get("/sessions", authenticate, listSessions);
 sessionRouter.get("/sessions/:id", authenticate, getSession);
 sessionRouter.post("/sessions", authenticate, scheduleSession);

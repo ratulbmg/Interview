@@ -22,4 +22,9 @@ if [ ! -d .venv ]; then
   fi
 fi
 
-.venv/bin/pip install -e .
+# `python -m pip`, not `.venv/bin/pip` directly — pip's own script has an
+# absolute-path shebang baked in at venv-creation time, which breaks the
+# moment this directory is ever renamed or moved (it did, once already:
+# apps/interview-engine -> apps/engine). `.venv/bin/python` is a relative
+# symlink, so it always resolves correctly regardless of the venv's path.
+.venv/bin/python -m pip install -e .

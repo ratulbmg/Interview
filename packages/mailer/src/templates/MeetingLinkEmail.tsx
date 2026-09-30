@@ -26,6 +26,7 @@ export function MeetingLinkEmail({
       </Text>
       <Button
         href={meetingUrl}
+        className="email-button"
         style={{
           backgroundColor: emailTheme.primary,
           color: emailTheme.primaryForeground,
@@ -39,7 +40,10 @@ export function MeetingLinkEmail({
       >
         Join interview
       </Button>
-      <Text style={{ color: emailTheme.mutedForeground, fontSize: "13px" }}>
+      <Text
+        className="email-muted-text"
+        style={{ color: emailTheme.mutedForeground, fontSize: "13px" }}
+      >
         This link is only active for 30 minutes after your scheduled start
         time — please join promptly.
       </Text>

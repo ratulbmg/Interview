@@ -18,6 +18,6 @@ export const baseApi = createApi({
     // Sends the httpOnly auth cookie set at login on every request.
     credentials: "include",
   }),
-  tagTypes: ["Candidate", "Session", "Role", "Question", "Me"],
+  tagTypes: ["Candidate", "Session", "Role", "Question", "Me", "Usage", "User"],
   endpoints: () => ({}),
 });

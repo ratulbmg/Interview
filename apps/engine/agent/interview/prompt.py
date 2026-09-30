@@ -1,22 +1,29 @@
 """Builds the fixed per-role system prompt for a live interview: the
-static instructions (recording/consent notice, follow-up behavior, closing
-line) plus this candidate's selected questions, in order. Relocated from
-agent/voice/pipeline.py, verbatim — pure string templating of a fixed
-question list, no branching about *when* the interview ends beyond the
-static closing line already in the text.
+static, standing behavioral rules — recording/consent notice, how to
+handle unclear audio, when to call end_interview, tone, and how to follow
+the per-turn interviewer directives agent/interview/adaptive_questioning.py
+injects into the conversation.
+
+The question-by-question content itself is NOT in this prompt any more —
+AdaptiveQuestioningProcessor injects one question (or one targeted
+follow-up) at a time as the interview progresses, based on
+agent/interview/answer_analyzer.py's read of each answer and
+agent/interview/followup_policy.py's deterministic decision. This file's
+job is only to tell the LLM how to behave *within* whatever directive it's
+given — never which question is next or when to stop probing one, which
+this file has no visibility into.
 
 Also defines the `end_interview` tool the LLM can call when the candidate
 explicitly asks to stop early (see agent/conversation/manager.py, which
 wires its handler) — the LLM decides *whether* to call it based on what the
-candidate actually said, same as it already decides everything else about
-conversation content; this file just describes the tool and when to use it,
-it doesn't decide anything itself.
+candidate actually said, same as it decides how to phrase everything else;
+this file just describes the tool and when to use it, it doesn't decide
+anything itself.
 """
 
 from pipecat.adapters.schemas.function_schema import FunctionSchema
 
 from agent.config import ACKNOWLEDGEMENT_PROBABILITY, ENABLE_ACKNOWLEDGEMENTS
-from agent.interview.questions import SelectedQuestion
 
 END_INTERVIEW_FUNCTION_NAME = "end_interview"
 
@@ -39,11 +46,13 @@ END_INTERVIEW_TOOL = FunctionSchema(
 )
 
 
-def _build_system_instruction(candidate_name: str, role_name: str, selected_questions: list[SelectedQuestion]) -> str:
+def _build_system_instruction(candidate_name: str, role_name: str) -> str:
     lines = [
         f"You are conducting a live, spoken job interview with {candidate_name} for the "
         f"{role_name} role. Speak naturally and conversationally — your responses are spoken "
-        "aloud, so never use emojis, bullet points, markdown, or anything that can't be spoken.",
+        "aloud, so never use emojis, bullet points, markdown, or anything that can't be spoken. "
+        "Maintain a professional interview tone throughout — you are conducting a structured "
+        "assessment, not chatting like a casual assistant.",
         # Qwen3 (and some other reasoning models) burn several seconds
         # thinking through a hidden chain-of-thought before every reply
         # unless told not to — fine for CV parsing/scoring (not
@@ -67,10 +76,19 @@ def _build_system_instruction(candidate_name: str, role_name: str, selected_ques
         f"difficult — do not respond with your own words at all. Call the {END_INTERVIEW_FUNCTION_NAME} "
         f"function immediately instead, with no other text in that response.",
         "",
-        "Ask the following questions IN ORDER, one at a time. After each answer, ask 1-2 short, natural "
-        "follow-up questions that probe deeper into what the candidate actually said (specifics, "
-        "trade-offs, a detail they glossed over) before moving to the next question — but don't force a "
-        "follow-up if the answer already fully covers the topic.",
+        "This interview is question-by-question: after the recording notice and the candidate's "
+        "confirmation, you will be given one interviewer directive at a time — each one either asks "
+        "you to pose a specific question, asks you to pose one specific targeted follow-up, or tells "
+        "you the interview is complete. Always follow the current directive exactly: never decide on "
+        "your own to keep probing a topic, skip ahead to a different question, re-ask something "
+        "already covered, or end the interview early. When a directive asks for a follow-up, ask only "
+        "about what it asks you to ask about — phrase it as one natural, conversational question, not "
+        "a checklist read aloud. Directives are marked and are never something you read aloud "
+        "verbatim or acknowledge to the candidate as an instruction you received.",
+        "",
+        "Never mention or hint at how questions are chosen, how answers are being judged or scored, "
+        "or any internal process, signal, policy, or state — to the candidate, this should feel like "
+        "an ordinary, attentive conversation with a human interviewer.",
         "",
     ]
     if ENABLE_ACKNOWLEDGEMENTS:
@@ -78,13 +96,5 @@ def _build_system_instruction(candidate_name: str, role_name: str, selected_ques
             f"Occasionally (not every turn) use a brief, professional acknowledgement like 'Okay,', "
             f"'Understood,', or 'Thank you' before continuing — roughly {round(ACKNOWLEDGEMENT_PROBABILITY * 100)}% "
             "of the time, never more than that.",
-            "",
         ]
-    for i, item in enumerate(selected_questions, start=1):
-        lines.append(f"{i}. [{item.slot}] {item.question.text}")
-    lines += [
-        "",
-        "After the last question, thank the candidate, let them know the interview is complete, "
-        "say goodbye, and stop talking.",
-    ]
     return "\n".join(lines)

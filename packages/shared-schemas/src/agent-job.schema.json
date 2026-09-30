@@ -12,6 +12,7 @@
         "sessionId",
         "candidateId",
         "roleId",
+        "createdById",
         "meetingUrl",
         "scheduledAt"
       ],
@@ -19,6 +20,10 @@
         "sessionId": { "type": "integer" },
         "candidateId": { "type": "integer" },
         "roleId": { "type": "integer" },
+        "createdById": {
+          "type": "integer",
+          "description": "The recruiter who scheduled this session — the agent selects this session's questions only from this recruiter's own question bank."
+        },
         "meetingUrl": { "type": "string", "format": "uri" },
         "scheduledAt": { "type": "string", "format": "date-time" }
       },

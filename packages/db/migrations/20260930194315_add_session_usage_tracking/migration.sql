@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "sessions" ADD COLUMN     "interviewSecondsUsed" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "llmCompletionTokensUsed" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "llmPromptTokensUsed" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "sttAudioSecondsUsed" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "ttsCharactersUsed" INTEGER NOT NULL DEFAULT 0;

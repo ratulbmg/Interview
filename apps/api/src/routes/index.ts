@@ -6,6 +6,8 @@ import sessionRouter from "./sessionRoute";
 import roleRouter from "./roleRoute";
 import questionRouter from "./questionRoute";
 import agentRouter from "./agentRoute";
+import userRouter from "./userRoute";
+import usageRouter from "../usage/usageRoute";
 
 const router = Router();
 
@@ -19,6 +21,8 @@ router.use(sessionRouter);
 router.use(roleRouter);
 router.use(questionRouter);
 router.use(agentRouter);
+router.use(userRouter);
+router.use(usageRouter);
 
 router.use(() => {
   throw new apiError("Route not found", 404);

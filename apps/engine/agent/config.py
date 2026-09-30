@@ -1,8 +1,9 @@
 """Environment configuration.
 
 Not a yarn workspace member, so this doesn't share packages/enums or
-packages/db with the TypeScript side — it talks to the same Postgres
-database directly (see db.py) and reads the same DATABASE_URL shape.
+packages/db with the TypeScript side. This process has no database
+connection of its own at all — every Postgres read/write goes through
+apps/api's POST /agent/data route instead (see agent/interview/agent_data_client.py).
 """
 
 import os
@@ -11,8 +12,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
-
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/interview")
 
 # Text LLM — CV parsing, scoring, and (via agent/interview_loop.py) the
 # text-only CLI's follow-ups (see agent/llm_client.py). The `openai` SDK
@@ -85,7 +84,7 @@ AGENT_PORT = int(os.environ.get("AGENT_PORT", "7860"))
 # Master switch for the pause-insertion processor between LLM and TTS. False
 # restores today's behavior exactly (no processor-inserted gaps).
 ENABLE_INTERVIEW_PROSODY = os.environ.get("ENABLE_INTERVIEW_PROSODY", "true").lower() == "true"
-# Whether the system prompt (agent/interview/flow.py) tells the LLM it's
+# Whether the system prompt (agent/interview/prompt.py) tells the LLM it's
 # okay to occasionally open a reply with a brief acknowledgement ("Okay,",
 # "Understood") — the LLM decides if/when, this only enables the guidance.
 ENABLE_ACKNOWLEDGEMENTS = os.environ.get("ENABLE_ACKNOWLEDGEMENTS", "true").lower() == "true"

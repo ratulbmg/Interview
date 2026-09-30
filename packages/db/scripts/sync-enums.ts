@@ -15,7 +15,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { InterviewSessionStatus, QuestionDifficulty } from "@repo/enums";
+import { InterviewSessionStatus, QuestionDifficulty, QuestionType } from "@repo/enums";
 
 const SCHEMA_PATH = path.resolve(__dirname, "../prisma/schema.prisma");
 
@@ -27,6 +27,7 @@ const SCHEMA_PATH = path.resolve(__dirname, "../prisma/schema.prisma");
 const SYNCED_ENUMS: Record<string, Record<string, string>> = {
   InterviewSessionStatus,
   QuestionDifficulty,
+  QuestionType,
 };
 
 function buildEnumBlock(name: string, values: Record<string, string>): string {

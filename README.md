@@ -14,9 +14,11 @@ spent on a screening call that didn't need one.
 1. **Add a candidate** — email, name, and a CV. The CV is parsed in the
    background the moment it's uploaded, so it's ready before any interview
    is even scheduled.
-2. **Schedule the interview** — pick a role and a time. Each role has a
-   fixed interview blueprint (an ordered list of competencies to assess);
-   the actual question text is selected later, per candidate.
+2. **Schedule the interview** — pick a role and a time. A handful of roles
+   are seeded by default, and a recruiter can define their own straight
+   from the dashboard (name, description, and the competencies to assess);
+   every role has a fixed interview blueprint either way, and the actual
+   question text is selected later, per candidate.
 3. **Send the invite** — one click. The candidate is emailed automatically
    (an initial invite, a follow-up, and the join link closer to the day),
    and the interview's questions are prepared a couple of minutes ahead of
@@ -33,6 +35,14 @@ spent on a screening call that didn't need one.
    per competency, each score backed by a quoted excerpt from what the
    candidate actually said, and every recruiter is notified by email with
    a link to the full report.
+
+Every recruiter's candidates, roles, questions, and interviews are their
+own — this is a multi-tenant platform, not a shared workspace, and the
+admin panel's **Users** tab lists every recruiter account alongside what
+each one has created. An **AI Usage** tab also shows what the AI
+interviewer is actually costing per role played — LLM tokens, transcription
+seconds, synthesized speech characters, and the resulting dollar
+figure — computed from real per-interview measurements, not an estimate.
 
 For the full technical walkthrough — every API call, database write, and
 decision the system makes along the way — see
@@ -78,6 +88,7 @@ own before the next one starts:
 | 7     | Meeting-bot swap (Teams)                                      | Not started |
 | 8     | Reports on the admin panel                                    | Done        |
 | 9     | Hardening for production (auth, deployment, monitoring, load) | In progress |
+| 10    | Multi-tenancy, recruiter-authored roles, real AI usage/cost tracking | Done        |
 
 ## Getting started
 

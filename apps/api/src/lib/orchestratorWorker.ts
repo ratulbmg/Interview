@@ -2,6 +2,7 @@ import { Worker, Job } from "bullmq";
 import { InterviewSessionStatus } from "../enum";
 import { repositoryWrapper } from "../repository/repositoryWrapper";
 import { sessionService } from "../service";
+import { TranscriptTurn, SelectedQuestionDto } from "../model/sessionModel";
 import {
   ORCHESTRATOR_QUEUE_NAME,
   OrchestratorQueueJob,
@@ -64,12 +65,8 @@ async function processInterviewTimeoutFinalize(
   }
 
   const checkpoint = session.checkpointJson as {
-    transcript?: { role: string; content: string }[];
-    selectedQuestions?: {
-      slot: string;
-      competency: string;
-      questionText: string;
-    }[];
+    transcript?: TranscriptTurn[];
+    selectedQuestions?: SelectedQuestionDto[];
   } | null;
   const transcript = Array.isArray(checkpoint?.transcript)
     ? checkpoint.transcript

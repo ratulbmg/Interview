@@ -4,4 +4,4 @@
  * `enum` blocks in packages/db/prisma/schema.prisma can't just import from
  * here instead).
  */
-export { InterviewSessionStatus, QuestionDifficulty } from "@repo/enums";
+export { InterviewSessionStatus, QuestionDifficulty, QuestionType } from "@repo/enums";

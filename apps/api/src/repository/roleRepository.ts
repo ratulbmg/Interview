@@ -11,8 +11,27 @@ class RoleRepository extends BaseRepository<
     super(prisma.role);
   }
 
-  async findAllOrdered(): Promise<Role[]> {
-    return prisma.role.findMany({ orderBy: { name: "asc" } });
+  /** Each recruiter has their own roles — there's no shared, cross-recruiter
+   * list (see packages/db/prisma/schema.prisma's Role.createdBy). */
+  async findAllOrderedForUser(userId: number): Promise<Role[]> {
+    return prisma.role.findMany({
+      where: { createdById: userId },
+      orderBy: { name: "asc" },
+    });
+  }
+
+  /** Name is only unique per recruiter now, not globally — used by
+   * agent/interview/agent_data_client.py's get_role_by_name (the standalone
+   * legacy_cli tool only; the live agent-start job looks roles up by id). */
+  async findByName(name: string, userId: number): Promise<Role | null> {
+    return prisma.role.findFirst({ where: { name, createdById: userId } });
+  }
+
+  /** Ownership check for scheduling a session — a role that exists but
+   * belongs to another recruiter is treated exactly like one that doesn't
+   * exist (see sessionService.scheduleSession). */
+  async findByIdForUser(id: number, userId: number): Promise<Role | null> {
+    return prisma.role.findFirst({ where: { id, createdById: userId } });
   }
 }
 

@@ -1,0 +1,58 @@
+# Pricing configuration for the recruiter Dashboard's "AI Usage &
+# Infrastructure" page — NOT usage data. Real usage (interviews run,
+# minutes, LLM tokens, STT seconds, TTS characters) is now measured for
+# real by apps/engine's ServiceMetricsObserver (see
+# agent/conversation/manager.py) and stored per-session in Postgres
+# (InterviewSession.llmPromptTokensUsed etc.) — apps/api's
+# usage/usageService.ts sums that real usage and multiplies it by the
+# per-unit rates below to get a real, if dummy-priced, dollar figure.
+#
+# DEVELOPMENT PLACEHOLDER PRICING ONLY. These per-unit rates and the
+# infrastructure estimate are made up for local testing — none of it is
+# real provider pricing. Only totalInfrastructureCostUsd has no real
+# measurement behind it (there's no cloud billing integration), so it
+# stays a flat estimate here; everything else in the dashboard response is
+# now computed from genuine per-interview usage.
+
+[meta]
+source=dummy-cost-file
+currency=USD
+
+[llm]
+provider=ollama
+model=qwen3:3b
+hosting=self_hosted
+inputCostPer1M=0
+outputCostPer1M=0
+
+[stt]
+provider=Kokoro
+model=kokoro-stt
+hosting=self_hosted
+costPerMinute=0
+
+[tts]
+provider=RemSky
+model=default-voice
+hosting=hosted
+costPer1MCharacters=2
+
+[embeddings]
+provider=ollama
+model=nomic-embed-text
+hosting=self_hosted
+costPer1MTokens=0
+
+# A flat monthly estimate, not derived from anything measured — there's no
+# real infra billing integration yet, so this one figure stays a stand-in
+# even though everything else on the dashboard is now real usage.
+[infrastructure]
+totalMonthlyUsd=125
+apiServerMonthlyUsd=15
+pythonEngineMonthlyUsd=20
+postgresMonthlyUsd=25
+redisMonthlyUsd=10
+ollamaServerMonthlyUsd=35
+kokoroServerMonthlyUsd=15
+storageMonthlyUsd=3
+bandwidthMonthlyUsd=2

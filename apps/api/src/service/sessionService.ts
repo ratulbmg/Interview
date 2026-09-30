@@ -6,6 +6,8 @@ import {
   ScheduleSessionRequest,
   TranscriptTurn,
   SelectedQuestionDto,
+  SessionResult,
+  DisconnectUsageDto,
 } from "../model/sessionModel";
 import { repositoryWrapper } from "../repository/repositoryWrapper";
 import { meetingProvider } from "../lib/meetingProvider";
@@ -17,6 +19,7 @@ import {
 } from "../lib/orchestratorQueue";
 import { scoreInterview } from "../lib/agentClient";
 import { delayUntil, MINUTES, DAYS } from "../lib/scheduling";
+import { computeEligibility } from "../lib/eligibility";
 
 type SessionWithRelations = InterviewSession & {
   candidate: Candidate;
@@ -27,7 +30,7 @@ type SessionWithRelations = InterviewSession & {
 // alongside JoinInstruction, without needing to know they actually live in
 // model/sessionModel.ts (kept there to avoid a circular import with
 // lib/agentClient.ts, which also needs them).
-export type { TranscriptTurn, SelectedQuestionDto };
+export type { TranscriptTurn, SelectedQuestionDto, SessionResult };
 
 /**
  * The single decision apps/api hands back to apps/engine for
@@ -101,13 +104,48 @@ function readCheckpoint(
 }
 
 class SessionService {
-  async listSessions(): Promise<InterviewSession[]> {
-    return repositoryWrapper.sessionRepository.findAllWithRelations();
+  async listSessions(userId: number): Promise<InterviewSession[]> {
+    return repositoryWrapper.sessionRepository.findAllForUser(userId);
   }
 
-  async getSession(id: number): Promise<InterviewSession> {
-    const session =
-      await repositoryWrapper.sessionRepository.findByIdWithRelations(id);
+  /** Backs the recruiter-facing Results screen — every scored session,
+   * each with the Eligible/Not Eligible verdict derived from its report
+   * (see lib/eligibility.ts). The frontend splits this one list into its
+   * two tabs by `eligible`, rather than this returning two separate lists —
+   * simpler for a set that's this small and never paginated. */
+  async listResults(userId: number): Promise<SessionResult[]> {
+    const sessions =
+      (await repositoryWrapper.sessionRepository.findCompletedWithReportsForUser(
+        userId,
+      )) as SessionWithRelations[];
+
+    return sessions
+      .map((session): SessionResult | null => {
+        const eligibility = computeEligibility(session.reportJson);
+        if (!eligibility) {
+          // reportJson exists (query already filtered on that) but isn't a
+          // recognizable ScoringResult — an old report shape from before
+          // this scoring system existed. Leave it out rather than show a
+          // misleading 0%.
+          return null;
+        }
+        return {
+          sessionId: session.id,
+          candidateName: session.candidate.name ?? session.candidate.email,
+          candidateEmail: session.candidate.email,
+          roleName: session.role.name,
+          scheduledAt: session.scheduledAt.toISOString(),
+          ...eligibility,
+        };
+      })
+      .filter((result): result is SessionResult => result !== null);
+  }
+
+  async getSession(id: number, userId: number): Promise<InterviewSession> {
+    const session = await repositoryWrapper.sessionRepository.findByIdForUser(
+      id,
+      userId,
+    );
     if (!session) {
       throw new apiError("Session not found", 404);
     }
@@ -116,9 +154,13 @@ class SessionService {
 
   /** Deletes only this one session — the candidate and any of their other
    * sessions are untouched (unlike candidateService.deleteCandidate, which
-   * cascades the other direction). */
-  async deleteSession(id: number): Promise<void> {
-    const existing = await repositoryWrapper.sessionRepository.findById(id);
+   * cascades the other direction). A session that exists but belongs to
+   * another recruiter is treated identically to one that doesn't exist. */
+  async deleteSession(id: number, userId: number): Promise<void> {
+    const existing = await repositoryWrapper.sessionRepository.findByIdForUser(
+      id,
+      userId,
+    );
     if (!existing) {
       throw new apiError("Session not found", 404);
     }
@@ -127,18 +169,31 @@ class SessionService {
 
   /** Scheduling is a second, separate action from adding the candidate —
    * this only creates the session record; nothing is sent to the candidate
-   * until sendInvite() below is called. */
+   * until sendInvite() below is called. `createdById` is the recruiter
+   * scheduling this interview (from the authenticated request, never client
+   * input) — it's what agent-start (below) tells apps/engine to select this
+   * session's questions from, since each recruiter has their own question
+   * bank (see packages/db/prisma/schema.prisma's Question.createdBy). */
   async scheduleSession(
     data: ScheduleSessionRequest,
+    createdById: number,
   ): Promise<InterviewSession> {
-    const candidate = await repositoryWrapper.candidateRepository.findById(
-      data.candidateId,
-    );
+    // Ownership-scoped, not the generic findById — a recruiter can only
+    // schedule using their own candidates and their own roles, never
+    // another recruiter's.
+    const candidate =
+      await repositoryWrapper.candidateRepository.findByIdForUser(
+        data.candidateId,
+        createdById,
+      );
     if (!candidate) {
       throw new apiError("Candidate not found", 404);
     }
 
-    const role = await repositoryWrapper.roleRepository.findById(data.roleId);
+    const role = await repositoryWrapper.roleRepository.findByIdForUser(
+      data.roleId,
+      createdById,
+    );
     if (!role) {
       throw new apiError("Role not found", 404);
     }
@@ -146,6 +201,7 @@ class SessionService {
     return repositoryWrapper.sessionRepository.create({
       candidate: { connect: { id: candidate.id } },
       role: { connect: { id: role.id } },
+      createdBy: { connect: { id: createdById } },
       scheduledAt: new Date(data.scheduledAt),
     });
   }
@@ -157,11 +213,14 @@ class SessionService {
    * job are scheduled as delayed jobs off scheduledAt — not three separate
    * recruiter actions.
    */
-  async sendInvite(id: number): Promise<InterviewSession> {
-    const session =
-      (await repositoryWrapper.sessionRepository.findByIdWithRelations(
-        id,
-      )) as SessionWithRelations | null;
+  async sendInvite(
+    id: number,
+    userId: number,
+  ): Promise<InterviewSession> {
+    const session = (await repositoryWrapper.sessionRepository.findByIdForUser(
+      id,
+      userId,
+    )) as SessionWithRelations | null;
     if (!session) {
       throw new apiError("Session not found", 404);
     }
@@ -371,6 +430,7 @@ class SessionService {
     transcript: TranscriptTurn[],
     selectedQuestions: SelectedQuestionDto[],
     endedDeliberately: boolean,
+    usage?: DisconnectUsageDto,
   ): Promise<void> {
     const session =
       (await repositoryWrapper.sessionRepository.findByIdWithRelations(
@@ -378,6 +438,20 @@ class SessionService {
       )) as SessionWithRelations | null;
     if (!session) {
       throw new apiError("Session not found", 404);
+    }
+
+    // Added to whatever this session already has, regardless of how this
+    // disconnect turns out — a checkpoint-and-resume's next segment adds
+    // more later; a deliberate end's segment is the last one. Never
+    // skipped, so partial usage from an accidental drop still counts.
+    if (usage) {
+      await repositoryWrapper.sessionRepository.incrementUsage(sessionId, {
+        llmPromptTokens: usage.llmPromptTokens ?? 0,
+        llmCompletionTokens: usage.llmCompletionTokens ?? 0,
+        sttAudioSeconds: usage.sttAudioSeconds ?? 0,
+        ttsCharacters: usage.ttsCharacters ?? 0,
+        interviewSeconds: usage.interviewSeconds ?? 0,
+      });
     }
 
     if (endedDeliberately) {
@@ -492,6 +566,7 @@ class SessionService {
       sessionId: session.id,
       candidateId: session.candidateId,
       roleId: session.roleId,
+      createdById: session.createdById,
       meetingUrl,
       scheduledAt: session.scheduledAt.toISOString(),
     };

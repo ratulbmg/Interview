@@ -40,3 +40,21 @@ export const QuestionDifficulty = {
 } as const;
 export type QuestionDifficulty =
   (typeof QuestionDifficulty)[keyof typeof QuestionDifficulty];
+
+/**
+ * What kind of thing a question is probing for — drives how the live
+ * interview's adaptive follow-up logic reasons about it (see
+ * apps/engine's agent/interview/answer_analyzer.py and
+ * followup_policy.py). ROLE is a general competency question; CV_BASED
+ * probes something specific the candidate's own CV claims; GAP checks for
+ * relevant experience the CV doesn't clearly cover; SCENARIO and
+ * BEHAVIORAL match the existing seed.ts blueprint slots of the same name.
+ */
+export const QuestionType = {
+  ROLE: "ROLE",
+  CV_BASED: "CV_BASED",
+  GAP: "GAP",
+  SCENARIO: "SCENARIO",
+  BEHAVIORAL: "BEHAVIORAL",
+} as const;
+export type QuestionType = (typeof QuestionType)[keyof typeof QuestionType];

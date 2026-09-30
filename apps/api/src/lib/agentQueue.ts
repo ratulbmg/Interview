@@ -10,6 +10,10 @@ export interface AgentStartJob {
   sessionId: number;
   candidateId: number;
   roleId: number;
+  /** The recruiter who scheduled this session — apps/engine selects this
+   * session's questions only from this recruiter's own question bank (see
+   * packages/db/prisma/schema.prisma's Question.createdBy). */
+  createdById: number;
   meetingUrl: string;
   scheduledAt: string;
 }

@@ -1,4 +1,5 @@
 export { loginUser, logoutUser, meAccount } from "./authController";
+export { listUsers } from "./userController";
 export {
   listCandidates,
   addCandidate,
@@ -6,16 +7,23 @@ export {
 } from "./candidateController";
 export {
   listSessions,
+  listResults,
   getSession,
   scheduleSession,
   sendInvite,
   deleteSession,
 } from "./sessionController";
-export { listRoles } from "./roleController";
-export { listQuestions } from "./questionController";
+export { listRoles, addRole } from "./roleController";
+export {
+  listQuestions,
+  addQuestion,
+  updateQuestion,
+  deleteQuestion,
+} from "./questionController";
 export {
   joinRoom,
   questionsSelected,
   consentGiven,
   disconnected,
+  agentData,
 } from "./agentController";

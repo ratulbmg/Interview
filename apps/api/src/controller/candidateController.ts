@@ -7,7 +7,7 @@ import { addCandidateSchema, idParamSchema } from "../validation";
 
 export const listCandidates = asyncHandler(
   async (req: Request, res: Response) => {
-    const response = await candidateService.listCandidates();
+    const response = await candidateService.listCandidates(req.user!.id);
     res.status(200).json(new ApiResponse(200, response, "Candidates fetched"));
   },
 );
@@ -18,7 +18,11 @@ export const addCandidate = asyncHandler(
     if (!req.file) {
       throw new apiError("A CV file is required", 400);
     }
-    const response = await candidateService.addCandidate(validated, req.file);
+    const response = await candidateService.addCandidate(
+      validated,
+      req.file,
+      req.user!.id,
+    );
     res.status(201).json(new ApiResponse(201, response, "Candidate added"));
   },
 );
@@ -26,7 +30,7 @@ export const addCandidate = asyncHandler(
 export const deleteCandidate = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = idParamSchema.parse(req.params);
-    await candidateService.deleteCandidate(id);
+    await candidateService.deleteCandidate(id, req.user!.id);
     res
       .status(200)
       .json(new ApiResponse(200, null, "Candidate and their sessions deleted"));
