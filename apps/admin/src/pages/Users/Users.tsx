@@ -1,4 +1,15 @@
+import { TableSkeleton } from "@repo/ui";
 import { useListUsersQuery } from "../../redux/api/usersApi";
+
+const USERS_SKELETON_COLUMNS = [
+  { header: "Name", className: "h-4 w-28" },
+  { header: "Email", className: "h-4 w-40" },
+  { header: "Candidates", className: "h-4 w-6" },
+  { header: "Roles", className: "h-4 w-6" },
+  { header: "Questions", className: "h-4 w-6" },
+  { header: "Sessions", className: "h-4 w-6" },
+  { header: "Joined", className: "h-4 w-20" },
+];
 
 /**
  * Every recruiter account on the platform — read-only, no add/edit/delete
@@ -19,7 +30,7 @@ export default function Users() {
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <TableSkeleton columns={USERS_SKELETON_COLUMNS} rows={4} />
       ) : isError ? (
         <p className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
           Could not load users.

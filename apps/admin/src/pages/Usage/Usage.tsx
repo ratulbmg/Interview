@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Badge, Card } from "@repo/ui";
+import { Badge, Card, Skeleton, StatCardSkeleton } from "@repo/ui";
 import { useGetUsageCostQuery } from "../../redux/api/usageApi";
 
 function StatCard({ label, value }: { label: string; value: ReactNode }) {
@@ -17,11 +17,33 @@ function formatUsd(value: number): string {
   return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
 }
 
+function UsageSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <StatCardSkeleton key={i} />
+        ))}
+      </div>
+      <Card className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i}>
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="mt-2 h-4 w-24" />
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
 /**
- * Its own tab, not a Dashboard section — this is temporary, dummy data
- * (see apps/engine/cost.txt's own header comment and usageService.ts's
- * doc comment) read through GET /usage/cost, never computed here. Every
- * figure starts at zero until real per-interview usage tracking exists.
+ * Its own tab, not a Dashboard section — usage totals (interviews,
+ * minutes, tokens, STT seconds, TTS characters) are real, summed from
+ * this recruiter's actual sessions; only the per-unit pricing rates and
+ * the flat infrastructure estimate still come from apps/engine/cost.txt
+ * (see usageService.ts's doc comment) since neither has a real
+ * measurement to compute from.
  */
 export default function Usage() {
   const { data: usageCost, isLoading, isError } = useGetUsageCostQuery();
@@ -42,7 +64,7 @@ export default function Usage() {
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <UsageSkeleton />
       ) : isError || !usageCost ? (
         <p className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
           Could not load usage/cost data. This is temporary demo data read

@@ -20,3 +20,13 @@ export {
 export { Badge, type BadgeProps } from "./components/badge";
 export { badgeVariants } from "./components/badge-variants";
 export { Modal, type ModalProps } from "./components/modal";
+export { Skeleton } from "./components/skeleton";
+export {
+  TableSkeleton,
+  type TableSkeletonColumn,
+  type TableSkeletonProps,
+} from "./components/table-skeleton";
+export {
+  StatCardSkeleton,
+  type StatCardSkeletonProps,
+} from "./components/stat-card-skeleton";

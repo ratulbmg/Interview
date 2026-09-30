@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
-import { Badge, Button, Card, Label, Select } from "@repo/ui";
+import { Badge, Button, Card, Label, Select, TableSkeleton } from "@repo/ui";
 import type { BadgeProps } from "@repo/ui";
 import { useListCandidatesQuery } from "../../redux/api/candidatesApi";
 import { useListRolesQuery } from "../../redux/api/rolesApi";
@@ -22,6 +22,14 @@ const STATUS_VARIANT: Record<string, NonNullable<BadgeProps["variant"]>> = {
   NO_SHOW: "destructive",
   CANCELLED: "destructive",
 };
+
+const SESSIONS_SKELETON_COLUMNS = [
+  { header: "Candidate", className: "h-4 w-28" },
+  { header: "Role", className: "h-4 w-24" },
+  { header: "Scheduled", className: "h-4 w-32" },
+  { header: "Status", className: "h-5 w-20 rounded-full" },
+  { header: "", className: "h-8 w-20 rounded-md", align: "right" as const },
+];
 
 /**
  * Scheduling (pick a candidate, a role, a date/time) and sending the
@@ -131,7 +139,7 @@ export default function Sessions() {
           Sessions
         </h2>
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <TableSkeleton columns={SESSIONS_SKELETON_COLUMNS} rows={4} />
         ) : (
           <div className="overflow-hidden rounded-lg border border-border">
             <table className="w-full text-left text-sm">

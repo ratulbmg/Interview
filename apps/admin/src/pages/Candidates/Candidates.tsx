@@ -1,5 +1,5 @@
 import { FormEvent, ReactNode, useRef, useState } from "react";
-import { Badge, Button, Card, Input, Label, Modal } from "@repo/ui";
+import { Badge, Button, Card, Input, Label, Modal, TableSkeleton } from "@repo/ui";
 import {
   Candidate,
   useAddCandidateMutation,
@@ -30,6 +30,15 @@ function TagList({ items }: { items: string[] }) {
     </div>
   );
 }
+
+const CANDIDATES_SKELETON_COLUMNS = [
+  { header: "Email", className: "h-4 w-40" },
+  { header: "Name", className: "h-4 w-24" },
+  { header: "CV", className: "h-4 w-10" },
+  { header: "Parsed CV", className: "h-4 w-16" },
+  { header: "Added", className: "h-4 w-20" },
+  { header: "", className: "h-8 w-16 rounded-md", align: "right" as const },
+];
 
 function BulletList({ items }: { items: string[] }) {
   if (items.length === 0) {
@@ -166,7 +175,7 @@ export default function Candidates() {
           Candidates
         </h2>
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <TableSkeleton columns={CANDIDATES_SKELETON_COLUMNS} rows={4} />
         ) : (
           <div className="overflow-hidden rounded-lg border border-border">
             <table className="w-full text-left text-sm">

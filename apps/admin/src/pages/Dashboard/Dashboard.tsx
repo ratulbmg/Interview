@@ -1,6 +1,17 @@
 import { FormEvent, ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
-import { Badge, Button, buttonVariants, Card, Input, Label, Modal } from "@repo/ui";
+import {
+  Badge,
+  Button,
+  buttonVariants,
+  Card,
+  Input,
+  Label,
+  Modal,
+  Skeleton,
+  StatCardSkeleton,
+  TableSkeleton,
+} from "@repo/ui";
 import type { BadgeProps } from "@repo/ui";
 import { useListCandidatesQuery } from "../../redux/api/candidatesApi";
 import {
@@ -72,6 +83,78 @@ function EmptyState({ message }: { message: string }) {
     <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
       {message}
     </p>
+  );
+}
+
+function ActivityListSkeleton({ rows }: { rows: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center justify-between px-4 py-2.5">
+          <Skeleton className="h-5 w-20 rounded-full" />
+          <Skeleton className="h-4 w-6" />
+        </div>
+      ))}
+    </>
+  );
+}
+
+function UpcomingListSkeleton({ rows }: { rows: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center justify-between px-4 py-2.5">
+          <div className="space-y-1.5">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-3 w-20" />
+          </div>
+          <div className="space-y-1.5 text-right">
+            <Skeleton className="ml-auto h-4 w-14" />
+            <Skeleton className="ml-auto h-3 w-16" />
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+const RECENT_INTERVIEWS_SKELETON_COLUMNS = [
+  { header: "Candidate", className: "h-4 w-28" },
+  { header: "Role", className: "h-4 w-24" },
+  { header: "Date", className: "h-4 w-20" },
+  { header: "Status", className: "h-5 w-20 rounded-full" },
+  { header: "Score", className: "h-4 w-12" },
+  { header: "", className: "h-4 w-10", align: "right" as const },
+];
+
+function EvaluationPerformanceSkeleton() {
+  return (
+    <Card className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="space-y-2">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-5 w-14" />
+        </div>
+      ))}
+    </Card>
+  );
+}
+
+function SavedRolesSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Card key={i} className="p-4">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="mt-2 h-3 w-full" />
+          <Skeleton className="mt-1.5 h-3 w-2/3" />
+          <div className="mt-3 flex gap-1.5">
+            <Skeleton className="h-5 w-14 rounded-full" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+        </Card>
+      ))}
+    </div>
   );
 }
 
@@ -219,36 +302,52 @@ export default function Dashboard() {
       </div>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard
-          label="Total Candidates"
-          value={
-            candidatesLoading || candidatesError
-              ? "—"
-              : (candidates?.length ?? 0)
-          }
-        />
-        <StatCard
-          label="Scheduled"
-          value={sessionsLoading || sessionsError ? "—" : scheduledCount}
-        />
-        <StatCard
-          label="Completed"
-          value={sessionsLoading || sessionsError ? "—" : completedCount}
-        />
-        <StatCard
-          label="In Progress"
-          value={sessionsLoading || sessionsError ? "—" : inProgressCount}
-        />
-        <StatCard
-          label="Avg. Score"
-          value={
-            resultsLoading || resultsError
-              ? "—"
-              : avgScore !== null
-                ? `${avgScore.toFixed(1)} / 5`
-                : "—"
-          }
-        />
+        {candidatesLoading ? (
+          <StatCardSkeleton />
+        ) : (
+          <StatCard
+            label="Total Candidates"
+            value={candidatesError ? "—" : (candidates?.length ?? 0)}
+          />
+        )}
+        {sessionsLoading ? (
+          <StatCardSkeleton />
+        ) : (
+          <StatCard
+            label="Scheduled"
+            value={sessionsError ? "—" : scheduledCount}
+          />
+        )}
+        {sessionsLoading ? (
+          <StatCardSkeleton />
+        ) : (
+          <StatCard
+            label="Completed"
+            value={sessionsError ? "—" : completedCount}
+          />
+        )}
+        {sessionsLoading ? (
+          <StatCardSkeleton />
+        ) : (
+          <StatCard
+            label="In Progress"
+            value={sessionsError ? "—" : inProgressCount}
+          />
+        )}
+        {resultsLoading ? (
+          <StatCardSkeleton valueClassName="h-7 w-14" />
+        ) : (
+          <StatCard
+            label="Avg. Score"
+            value={
+              resultsError
+                ? "—"
+                : avgScore !== null
+                  ? `${avgScore.toFixed(1)} / 5`
+                  : "—"
+            }
+          />
+        )}
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -258,7 +357,7 @@ export default function Dashboard() {
           </h2>
           <Card className="divide-y divide-border p-0">
             {sessionsLoading ? (
-              <p className="p-4 text-sm text-muted-foreground">Loading…</p>
+              <ActivityListSkeleton rows={ALL_STATUSES.length} />
             ) : sessionsError ? (
               <div className="p-4">
                 <SectionError message="Could not load interview activity." />
@@ -289,7 +388,7 @@ export default function Dashboard() {
           </h2>
           <Card className="divide-y divide-border p-0">
             {sessionsLoading ? (
-              <p className="p-4 text-sm text-muted-foreground">Loading…</p>
+              <UpcomingListSkeleton rows={3} />
             ) : sessionsError ? (
               <div className="p-4">
                 <SectionError message="Could not load upcoming interviews." />
@@ -335,7 +434,10 @@ export default function Dashboard() {
           Recent Interviews
         </h2>
         {sessionsLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <TableSkeleton
+            columns={RECENT_INTERVIEWS_SKELETON_COLUMNS}
+            rows={RECENT_LIMIT}
+          />
         ) : sessionsError ? (
           <SectionError message="Could not load recent interviews." />
         ) : recentInterviews.length > 0 ? (
@@ -399,7 +501,7 @@ export default function Dashboard() {
           Recent Evaluation Performance
         </h2>
         {resultsLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <EvaluationPerformanceSkeleton />
         ) : resultsError ? (
           <SectionError message="Could not load evaluation performance." />
         ) : dimensionAverages.length > 0 ? (
@@ -425,7 +527,7 @@ export default function Dashboard() {
           Saved Roles
         </h2>
         {rolesLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <SavedRolesSkeleton />
         ) : rolesError ? (
           <SectionError message="Could not load roles." />
         ) : (

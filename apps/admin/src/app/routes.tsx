@@ -11,6 +11,7 @@ import SessionDetail from "../pages/SessionDetail/SessionDetail";
 import Questions from "../pages/Questions/Questions";
 import Results from "../pages/Results/Results";
 import Room from "../pages/Room/Room";
+import NotFound from "../pages/NotFound/NotFound";
 
 export default function AppRoutes() {
   return (
@@ -34,7 +35,7 @@ export default function AppRoutes() {
         </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

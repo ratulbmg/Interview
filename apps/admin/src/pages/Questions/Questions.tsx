@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Badge, Button, Input, Label, Modal, Select } from "@repo/ui";
+import { Badge, Button, Input, Label, Modal, Select, TableSkeleton } from "@repo/ui";
 import {
   QuestionType,
   useAddQuestionMutation,
@@ -24,6 +24,14 @@ function parseList(value: string): string[] {
     .map((item) => item.trim())
     .filter(Boolean);
 }
+
+const QUESTIONS_SKELETON_COLUMNS = [
+  { header: "Question", className: "h-4 w-72 max-w-full" },
+  { header: "Competency", className: "h-4 w-20" },
+  { header: "Type", className: "h-5 w-16 rounded-full" },
+  { header: "Difficulty", className: "h-4 w-14" },
+  { header: "Times asked", className: "h-4 w-6" },
+];
 
 const initialFormState = {
   text: "",
@@ -82,7 +90,7 @@ export default function Questions() {
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <TableSkeleton columns={QUESTIONS_SKELETON_COLUMNS} rows={5} />
       ) : (
         <div className="overflow-hidden rounded-lg border border-border">
           <table className="w-full text-left text-sm">

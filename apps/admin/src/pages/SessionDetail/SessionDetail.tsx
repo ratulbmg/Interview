@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom";
-import { Card } from "@repo/ui";
+import { Card, Skeleton } from "@repo/ui";
 import { useGetSessionQuery } from "../../redux/api/sessionsApi";
 
 interface CompetencyScore {
@@ -36,6 +36,45 @@ function isTranscript(value: unknown): value is TranscriptTurn[] {
   );
 }
 
+function SessionDetailSkeleton() {
+  return (
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <Skeleton className="h-5 w-64" />
+        <Skeleton className="h-4 w-48" />
+      </div>
+
+      <section>
+        <Skeleton className="mb-3 h-5 w-32" />
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i} className="p-4">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-5 w-14 rounded-full" />
+              </div>
+              <Skeleton className="mt-3 h-3 w-full" />
+              <Skeleton className="mt-1.5 h-3 w-2/3" />
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <Skeleton className="mb-3 h-5 w-24" />
+        <Card className="space-y-3 p-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="space-y-1.5">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-3.5 w-full" />
+            </div>
+          ))}
+        </Card>
+      </section>
+    </div>
+  );
+}
+
 /** Report + transcript appear here once apps/engine posts them
  * (see apps/api's sessionService.receiveTranscript) — the recruiter does
  * nothing to trigger it, they just come back and check. */
@@ -44,7 +83,7 @@ export default function SessionDetail() {
   const { data: session, isLoading } = useGetSessionQuery(Number(id));
 
   if (isLoading || !session) {
-    return <p className="text-sm text-muted-foreground">Loading…</p>;
+    return <SessionDetailSkeleton />;
   }
 
   const report = isReport(session.reportJson) ? session.reportJson : null;
